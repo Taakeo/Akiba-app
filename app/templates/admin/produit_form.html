@@ -1,0 +1,127 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - {{ "Modifier" if produit else "Nouveau" }} produit{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.produits') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Produits
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">{{ "Modifier " + produit.name if produit else "Nouveau produit" }}</h2>
+</header>
+
+<form method="post" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+  {{ form.hidden_tag() }}
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("label", "Identification") }}
+
+    {% if produit and produit.photo_path %}
+    <div class="mb-4 flex items-center gap-4">
+      <img src="{{ url_for('admin.produit_photo', produit_id=produit.id) }}" alt="{{ produit.name }}" class="w-20 h-20 rounded-xl object-cover border border-outline-variant/50">
+      <p class="font-body-md text-xs text-on-surface-variant">Photo actuelle — en choisir une nouvelle ci-dessous la remplace.</p>
+    </div>
+    {% endif %}
+    {{ field(form.photo, help="JPG, PNG ou WEBP. Affichée sur la fiche produit et au Point de Vente.") }}
+
+    {{ field(form.name) }}
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.poste_id) }}
+      {{ field(form.projet_id) }}
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.categorie_id) }}
+      {{ field(form.sous_categorie_id, help="La liste se filtre selon la catégorie choisie.") }}
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.unite) }}
+      {{ field(form.code_barres) }}
+    </div>
+
+    {{ field(form.fournisseur_principal_id) }}
+  </div>
+
+  <div class="flex flex-col gap-gutter">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("inventory_2", "Stock & achat") }}
+
+      <label class="flex items-center gap-3 mb-4 p-3 rounded-xl border border-outline-variant/50 cursor-pointer">
+        {{ form.stock_illimite(class="w-5 h-5", id="stock_illimite") }}
+        <span class="font-body-md text-sm text-on-surface">{{ form.stock_illimite.label.text }}</span>
+      </label>
+
+      <div id="bloc-stock-limite" class="grid grid-cols-2 gap-x-4">
+        {{ field(form.stock_quantite, help="Décompté/incrémenté automatiquement par les ventes, achats et fabrications.") }}
+        {{ field(form.seuil_alerte, help="En dessous de ce seuil, le produit apparaît en alerte stock faible.") }}
+      </div>
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.prix_achat) }}
+        {{ field(form.prix_reference, help="Base du calcul des tarifs en % (ex. Adhérent -10%) définis dans Administration > Tarifs.") }}
+      </div>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("sell", "Tarifs de vente") }}
+
+      <label class="flex items-center gap-3 mb-4 p-3 rounded-xl border border-outline-variant/50 cursor-pointer">
+        {{ form.prix_libre(class="w-5 h-5", id="prix_libre") }}
+        <span class="font-body-md text-sm text-on-surface">{{ form.prix_libre.label.text }}</span>
+      </label>
+
+      <div id="bloc-tarifs-fixes">
+      <p class="font-body-md text-xs text-on-surface-variant -mt-1 mb-2">Laisser un tarif vide le rend indisponible à la vente pour ce produit.</p>
+      {% if tarifs %}
+      {% for tarif in tarifs %}
+      <div class="mb-4">
+        <label class="block font-label-md text-label-md text-on-surface mb-1">{{ tarif.label }} <span class="text-on-surface-variant/60 font-normal">(facultatif)</span></label>
+        <input type="number" name="prix_{{ tarif.id }}" value="{{ prix_actuels.get(tarif.id, '') }}"
+               class="w-full h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow"
+               placeholder="{% if tarif.id in prix_suggeres %}Calculé auto : {{ prix_suggeres[tarif.id] }} (-{{ tarif.pourcentage_rabais }}%){% else %}Non disponible{% endif %}">
+        {% if tarif.rabais_actif and tarif.pourcentage_rabais and tarif.id not in prix_actuels %}
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {% if tarif.id in prix_suggeres %}
+          Laissé vide : {{ prix_suggeres[tarif.id] }} sera utilisé (-{{ tarif.pourcentage_rabais }}% du prix de référence, arrondi).
+          {% else %}
+          Rabais de {{ tarif.pourcentage_rabais }}% actif, mais aucun prix de référence renseigné ci-dessus : ce tarif restera indisponible tant qu'un prix (référence ou manuel) n'est pas fourni.
+          {% endif %}
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="font-body-md text-body-md text-on-surface-variant">Aucun type de tarif configuré.</p>
+      {% endif %}
+      </div>
+    </div>
+
+    {{ actions("Enregistrer" if produit else "Créer le produit", url_for("admin.produits")) }}
+  </div>
+</form>
+
+<script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>
+<script id="sous-categories-json" type="application/json">{{ sous_categories_json | tojson }}</script>
+<script src="{{ url_for('static', filename='js/cascade.js') }}"></script>
+<script>
+  initCascadeSousCategorie("poste_id", "categorie_id", "categories-json", {{ (form.categorie_id.data or 0) | tojson }});
+  initCascadeSousCategorie("categorie_id", "sous_categorie_id", "sous-categories-json", {{ (form.sous_categorie_id.data or 0) | tojson }});
+
+  const stockIllimite = document.getElementById("stock_illimite");
+  const blocStockLimite = document.getElementById("bloc-stock-limite");
+  function updateBlocStock() {
+    blocStockLimite.classList.toggle("hidden", stockIllimite.checked);
+  }
+  stockIllimite.addEventListener("change", updateBlocStock);
+  updateBlocStock();
+
+  const prixLibre = document.getElementById("prix_libre");
+  const blocTarifsFixes = document.getElementById("bloc-tarifs-fixes");
+  function updateBlocTarifs() {
+    blocTarifsFixes.classList.toggle("hidden", prixLibre.checked);
+  }
+  prixLibre.addEventListener("change", updateBlocTarifs);
+  updateBlocTarifs();
+</script>
+{% endblock %}

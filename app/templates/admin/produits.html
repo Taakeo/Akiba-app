@@ -1,0 +1,62 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import supprimer_bouton %}
+{% block title %}AKIBA APP - Produits{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Produits</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Archivage recommandé par défaut ; suppression définitive possible tant que le produit n'a jamais servi dans une vente, un achat, une fabrication ou un inventaire.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('admin.produits_import') }}" class="h-touch-target-min px-6 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined">upload_file</span>
+      Importer depuis Excel
+    </a>
+    <a href="{{ url_for('admin.produit_nouveau') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      <span class="material-symbols-outlined">add</span>
+      Nouveau produit
+    </a>
+  </div>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+    <div class="flex items-center gap-3 min-w-0">
+      {% if item.photo_path %}
+      <img src="{{ url_for('admin.produit_photo', produit_id=item.id) }}" alt="" class="w-11 h-11 rounded-lg object-cover flex-shrink-0 border border-outline-variant/50">
+      {% else %}
+      <div class="w-11 h-11 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant flex-shrink-0">
+        <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+      </div>
+      {% endif %}
+      <div class="min-w-0">
+        <p class="font-label-md text-label-md text-on-surface">{{ item.name }}{% if item.is_archived %} <span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ item.poste.name }} · {{ item.categorie.name }}{% if item.sous_categorie %} / {{ item.sous_categorie.name }}{% endif %}
+          · Stock {% if item.stock_illimite %}illimité{% else %}{{ item.stock_quantite }} {{ item.unite }}{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('admin.produit_modifier', produit_id=item.id) }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+        Modifier
+      </a>
+      <form method="post" action="{{ url_for('admin.produit_toggle_archive', produit_id=item.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+          {{ "Réactiver" if item.is_archived else "Archiver" }}
+        </button>
+      </form>
+      {{ supprimer_bouton(url_for('admin.produit_supprimer', produit_id=item.id), item.name) }}
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun produit. Créez le premier.</p>
+  {% endfor %}
+</div>
+{% endblock %}

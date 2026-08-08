@@ -1,0 +1,53 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Ajustement de stock{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('stocks.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Stocks
+</a>
+<div class="max-w-2xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("tune", "Ajustement manuel") }}
+  <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-6">Pour les pertes, dons, consommation interne ou corrections d'inventaire. Les ventes et achats mettent déjà le stock à jour automatiquement.</p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.produit_id) }}
+      {{ field(form.quantite) }}
+    </div>
+
+    <p class="font-label-md text-label-md text-on-surface-variant mb-2">Sens <span class="text-error">*</span></p>
+    <div class="flex bg-surface-container-low rounded-full p-1 border border-outline-variant/30 mb-4">
+      {% for subfield in form.type_mouvement %}
+      <label class="flex-1 text-center h-touch-target-min rounded-full flex items-center justify-center font-label-md text-label-md cursor-pointer has-[:checked]:bg-surface-container-lowest has-[:checked]:shadow-sm has-[:checked]:text-primary has-[:checked]:font-bold text-on-surface-variant">
+        {{ subfield }} {{ subfield.label.text }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <div id="motif-entree">
+      {{ field(form.motif_entree, help="Ex. retour d'un client, don reçu, correction après inventaire.") }}
+    </div>
+    <div id="motif-sortie">
+      {{ field(form.motif_sortie, help="Ex. produit cassé/périmé, don offert, correction après inventaire.") }}
+    </div>
+
+    {{ field(form.commentaire) }}
+
+    {{ actions("Enregistrer", url_for("stocks.index")) }}
+  </form>
+</div>
+<script>
+  const radios = document.querySelectorAll('input[name="type_mouvement"]');
+  const blocEntree = document.getElementById("motif-entree");
+  const blocSortie = document.getElementById("motif-sortie");
+  function update() {
+    const value = document.querySelector('input[name="type_mouvement"]:checked')?.value;
+    blocEntree.classList.toggle("hidden", value !== "entree");
+    blocSortie.classList.toggle("hidden", value !== "sortie");
+  }
+  radios.forEach((r) => r.addEventListener("change", update));
+  update();
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import section_header %}
+{% block title %}AKIBA APP - Tableau de bord{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("dashboard_customize", "Tableau de bord") }}
+  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-6">
+    Activez/désactivez et réordonnez (glisser-déposer) les blocs affichés sur le tableau de bord de tout le monde. Un widget désactivé disparaît pour tous les profils, même ceux qui y auraient droit — le droit d'accès sous-jacent reste sinon inchangé.
+  </p>
+
+  <form method="post" id="form-widgets">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="ordre" id="ordre-input" value="">
+
+    <ul id="liste-widgets" class="flex flex-col gap-2 mb-6">
+      {% for w in widgets %}
+      <li draggable="true" data-code="{{ w.code }}" class="widget-item flex items-center gap-3 p-3 rounded-xl border border-outline-variant/50 bg-surface cursor-grab active:cursor-grabbing">
+        <span class="material-symbols-outlined text-on-surface-variant">drag_indicator</span>
+        <label class="flex items-center gap-3 flex-1 cursor-pointer">
+          <input type="checkbox" name="actifs" value="{{ w.code }}" class="w-5 h-5" {% if w.actif %}checked{% endif %}>
+          <span class="font-body-md text-body-md text-on-surface">{{ labels.get(w.code, w.code) }}</span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Enregistrer</button>
+  </form>
+</div>
+
+<script>
+  const liste = document.getElementById("liste-widgets");
+  const ordreInput = document.getElementById("ordre-input");
+  let elementGlisse = null;
+
+  function majOrdreInput() {
+    const codes = Array.from(liste.querySelectorAll(".widget-item")).map((el) => el.dataset.code);
+    ordreInput.value = codes.join(",");
+  }
+
+  liste.querySelectorAll(".widget-item").forEach((item) => {
+    item.addEventListener("dragstart", () => {
+      elementGlisse = item;
+      item.classList.add("opacity-40");
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("opacity-40");
+      majOrdreInput();
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!elementGlisse || elementGlisse === item) return;
+      const rect = item.getBoundingClientRect();
+      const apres = e.clientY - rect.top > rect.height / 2;
+      liste.insertBefore(elementGlisse, apres ? item.nextSibling : item);
+    });
+  });
+
+  document.getElementById("form-widgets").addEventListener("submit", majOrdreInput);
+  majOrdreInput();
+</script>
+{% endblock %}

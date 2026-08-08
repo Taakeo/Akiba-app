@@ -1,0 +1,87 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - Achats récurrents{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('achats.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Achats
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Modèles d'achats récurrents</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+    Bois, quincaillerie, bouffe, wifi... — mémorisez le classement habituel pour relancer l'achat en un clic depuis la page Achats.
+  </p>
+</header>
+
+<div class="flex flex-col gap-gutter">
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% for item in items %}
+    <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+      <div>
+        <p class="font-label-md text-label-md text-on-surface">{{ item.nom }}{% if item.is_archived %} <span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ "Achat de stock" if item.type_achat == "stock" else "Dépense générale" }}
+          · {{ item.poste.name }} · {{ item.categorie.name }}
+          {% if item.fournisseur %} · {{ item.fournisseur.name }}{% endif %}
+        </p>
+      </div>
+      <form method="post" action="{{ url_for('achats.recurrent_toggle_archive', modele_id=item.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+          {{ "Réactiver" if item.is_archived else "Archiver" }}
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun modèle pour l'instant.</p>
+    {% endfor %}
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 max-w-4xl w-full mx-auto">
+    {{ section_header("bolt", "Nouveau modèle") }}
+    <form method="post" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+      {{ form.hidden_tag() }}
+
+      {{ field(form.nom, help="Nom court affiché sur le bouton de lancement rapide.") }}
+      {{ field(form.type_achat) }}
+      {{ field(form.poste_id) }}
+      {{ field(form.categorie_id) }}
+      {{ field(form.sous_categorie_id, help="La liste se filtre selon la catégorie choisie.") }}
+      {{ field(form.projet_id) }}
+      {{ field(form.fournisseur_id) }}
+      {{ field(form.moyen_paiement_id) }}
+
+      <div id="modele-bloc-stock" class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 sm:col-span-2">
+        {{ field(form.produit_id) }}
+        {{ field(form.quantite_habituelle, help="Quantité type — modifiable à chaque utilisation.") }}
+        {{ field(form.prix_unitaire_habituel, help="Prix indicatif — modifiable à chaque utilisation.") }}
+      </div>
+      <div id="modele-bloc-depense" class="sm:col-span-2">
+        {{ field(form.montant_habituel, help="Montant indicatif — modifiable à chaque utilisation.") }}
+      </div>
+
+      <div class="sm:col-span-2">
+        <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer le modèle</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>
+<script id="sous-categories-json" type="application/json">{{ sous_categories_json | tojson }}</script>
+<script src="{{ url_for('static', filename='js/cascade.js') }}"></script>
+<script>
+  const typeSelect = document.getElementById("type_achat");
+  const blocStock = document.getElementById("modele-bloc-stock");
+  const blocDepense = document.getElementById("modele-bloc-depense");
+  function update() {
+    blocStock.classList.toggle("hidden", typeSelect.value !== "stock");
+    blocDepense.classList.toggle("hidden", typeSelect.value !== "depense");
+  }
+  typeSelect.addEventListener("change", update);
+  update();
+
+  initCascadeSousCategorie("poste_id", "categorie_id", "categories-json", {{ (form.categorie_id.data or 0) | tojson }});
+  initCascadeSousCategorie("categorie_id", "sous_categorie_id", "sous-categories-json", {{ (form.sous_categorie_id.data or 0) | tojson }});
+</script>
+{% endblock %}

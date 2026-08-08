@@ -1,0 +1,137 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Tableau de bord{% endblock %}
+{% block shell_content %}
+<header class="mb-8 flex items-start justify-between flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Tableau de bord</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-2">Bonjour {{ current_user.full_name }}.</p>
+  </div>
+  {% if current_user.profile.has_permission("admin") %}
+  <a href="{{ url_for('admin.tableau_bord_widgets') }}" class="h-touch-target-min px-5 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md hover:bg-surface-container transition-colors">
+    <span class="material-symbols-outlined text-[20px]">dashboard_customize</span>
+    Personnaliser
+  </a>
+  {% endif %}
+</header>
+
+{% set peut_voir_activite = current_user.profile.has_permission("rapports") or current_user.profile.has_permission("point_de_vente") %}
+{% set peut_voir_stocks = current_user.profile.has_permission("stocks") %}
+{% set peut_voir_comptes = current_user.profile.has_permission("caisse") or current_user.profile.has_permission("rapports") %}
+{% set peut_voir_clients = current_user.profile.has_permission("clients") or current_user.profile.has_permission("rapports") %}
+{% set montre_alertes = (peut_voir_stocks and (ruptures or faibles or inventaires_ouverts)) or (peut_voir_clients and clients_a_credit) %}
+
+{# L'ordre d'affichage et l'activation de chaque bloc viennent d'Administration
+   > Tableau de bord (widgets_ordre / widgets_actifs) — le droit d'accès
+   sous-jacent (peut_voir_*) reste toujours vérifié en plus : désactiver un
+   widget le cache pour tout le monde, mais l'activer ne donne jamais accès
+   à quelqu'un qui n'avait pas déjà le droit correspondant. #}
+{% for code in widgets_ordre %}
+{% if code == "activite" and peut_voir_activite and widgets_actifs.get("activite") %}
+<section class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Activité</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">CA du jour</p>
+      <p class="font-headline-lg text-headline-lg text-primary">{{ "{:,}".format(ca_jour).replace(",", " ") }}</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">CA du mois</p>
+      <p class="font-headline-lg text-headline-lg text-on-surface">{{ "{:,}".format(ca_mois).replace(",", " ") }}</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">Ventes aujourd'hui</p>
+      <p class="font-headline-lg text-headline-lg text-on-surface">{{ nb_ventes_jour }}</p>
+    </div>
+  </div>
+</section>
+
+{% elif code == "stocks" and peut_voir_stocks and widgets_actifs.get("stocks") %}
+<section class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Stocks</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+    <a href="{{ url_for('stocks.index') }}" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 hover:-translate-y-1 transition-all">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">Ruptures</p>
+      <p class="font-headline-lg text-headline-lg text-error">{{ ruptures|length }}</p>
+    </a>
+    <a href="{{ url_for('stocks.index') }}" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 hover:-translate-y-1 transition-all">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">Stock faible</p>
+      <p class="font-headline-lg text-headline-lg" style="color:#c2740c">{{ faibles|length }}</p>
+    </a>
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">Valeur du stock</p>
+      <p class="font-headline-lg text-headline-lg text-on-surface">{{ "{:,}".format(valeur_stock).replace(",", " ") }}</p>
+    </div>
+  </div>
+</section>
+
+{% elif code == "comptes" and peut_voir_comptes and widgets_actifs.get("comptes") %}
+<section class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Comptes</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+    {% for compte in comptes %}
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1">{{ compte.name }}</p>
+      <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(compte.solde).replace(",", " ") }} {{ compte.devise }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% elif code == "top_produits" and top_produits and peut_voir_activite and widgets_actifs.get("top_produits") %}
+<section class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Produits les plus vendus ce mois-ci</h3>
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% for nom, quantite in top_produits %}
+    <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+      <span class="font-body-md text-body-md text-on-surface">{{ loop.index }}. {{ nom }}</span>
+      <span class="font-label-md text-label-md text-on-surface-variant">{{ quantite }} vendu(s)</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% elif code == "alertes" and montre_alertes and widgets_actifs.get("alertes") %}
+<section class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Alertes</h3>
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% if peut_voir_stocks %}
+    {% for p in ruptures %}
+    <div class="flex items-center gap-4 p-4 border-b border-outline-variant/20">
+      <span class="material-symbols-outlined text-error">error</span>
+      <span class="font-body-md text-body-md text-on-surface">{{ p.name }} en rupture de stock</span>
+    </div>
+    {% endfor %}
+    {% for p in faibles %}
+    <div class="flex items-center gap-4 p-4 border-b border-outline-variant/20">
+      <span class="material-symbols-outlined" style="color:#c2740c">warning</span>
+      <span class="font-body-md text-body-md text-on-surface">{{ p.name }} sous le seuil d'alerte ({{ p.stock_quantite }})</span>
+    </div>
+    {% endfor %}
+    {% if inventaires_ouverts %}
+    <div class="flex items-center gap-4 p-4 border-b border-outline-variant/20">
+      <span class="material-symbols-outlined text-on-surface-variant">fact_check</span>
+      <a href="{{ url_for('stocks.inventaires') }}" class="font-body-md text-body-md text-on-surface underline">
+        {{ inventaires_ouverts }} inventaire(s) en cours à clôturer
+      </a>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% if peut_voir_clients and clients_a_credit %}
+    <div class="flex items-center gap-4 p-4 border-b border-outline-variant/20">
+      <span class="material-symbols-outlined text-error">credit_card</span>
+      <a href="{{ url_for('clients.index') }}" class="font-body-md text-body-md text-on-surface underline">
+        {{ clients_a_credit|length }} client(s) à crédit — {{ "{:,}".format(total_credits_du).replace(",", " ") }} au total
+      </a>
+    </div>
+    {% for c in clients_a_credit[:5] %}
+    <div class="flex items-center justify-between gap-4 p-4 pl-14 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+      <a href="{{ url_for('clients.fiche', client_id=c.id) }}" class="font-body-md text-sm text-on-surface-variant hover:text-on-surface hover:underline">{{ c.nom }}</a>
+      <span class="font-label-md text-label-md text-error">{{ "{:,}".format(c.solde_credit).replace(",", " ") }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endfor %}
+{% endblock %}

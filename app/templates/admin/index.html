@@ -1,0 +1,40 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Administration{% endblock %}
+{% block shell_content %}
+<header class="mb-8">
+  <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Administration</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-2">Paramétrage du catalogue et des utilisateurs, sans intervention du développeur.</p>
+</header>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
+  {% for endpoint, icon, title, description in [
+    ("admin.produits", "inventory_2", "Produits", "Fiches produit et tarifs"),
+    ("admin.categories", "category", "Catégories", "Catégories et sous-catégories du Point de Vente"),
+    ("admin.tarifs", "sell", "Tarifs", "Types de tarif PDV (Standard, Adhérent, Grossiste...)"),
+    ("admin.postes", "storefront", "Postes", "Pôles d'activité d'Akiba"),
+    ("admin.projets", "assignment", "Projets", "Projets financés par des partenaires"),
+    ("admin.fournisseurs", "local_shipping", "Fournisseurs", "Coordonnées, produits fournis"),
+    ("admin.moyens_paiement", "payments", "Moyens de paiement", "Espèces, mobile money, banque..."),
+    ("admin.comptes_financiers", "account_balance", "Comptes financiers", "Corriger le solde réel d'un compte, avec motif tracé"),
+    ("admin.tableau_bord_widgets", "dashboard_customize", "Tableau de bord", "Activer/désactiver et réordonner les blocs affichés"),
+    ("admin.utilisateurs", "group", "Utilisateurs", "Sous-profils, PIN, suspension"),
+    ("admin.profils", "badge", "Profils", "Droits d'accès par profil (Vendeur, Responsable...)"),
+    ("admin.parametres_rh", "groups", "Paramètres RH", "Quota de congés par défaut"),
+    ("admin.taux_change", "currency_exchange", "Taux de change", "Ariary / Euro, utilisé au PDV"),
+    ("admin.parametres_legaux", "gavel", "Informations légales", "Coordonnées reprises sur les factures officielles"),
+    ("admin.parametres_imprimante", "print", "Imprimante ticket", "Nom de l'imprimante pour ouvrir le tiroir-caisse"),
+    ("admin.sauvegardes", "backup", "Sauvegardes", "Créer, restaurer, historique d'audit"),
+    ("admin.journal", "history_edu", "Journal d'activité", "Tout ce qui a été fait, par qui, quand — tous profils"),
+  ] %}
+  <a href="{{ url_for(endpoint) }}" class="flex items-center gap-4 bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 hover:-translate-y-1 transition-all">
+    <div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined">{{ icon }}</span>
+    </div>
+    <div>
+      <h3 class="font-headline-md text-headline-md text-on-surface">{{ title }}</h3>
+      <p class="font-body-md text-sm text-on-surface-variant">{{ description }}</p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

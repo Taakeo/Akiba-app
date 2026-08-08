@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "pos/_nav.html" import pdv_nav with context %}
+{% block title %}AKIBA APP - Fermeture de caisse{% endblock %}
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+  {{ pdv_nav("caisse") }}
+  <main class="flex-1 ml-20 p-gutter md:p-container-margin min-h-screen overflow-y-auto">
+<a href="{{ url_for('caisse.pdv') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Retour
+</a>
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  <div class="flex items-center gap-3 mb-6 pb-4 border-b border-surface-variant">
+    <div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
+      <span class="material-symbols-outlined">lock</span>
+    </div>
+    <h3 class="font-headline-md text-headline-md text-on-surface">Fermeture de caisse</h3>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4 mb-6">
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Recettes</span>
+      <span class="block font-headline-md text-headline-md text-on-surface">{{ resume.recettes }}</span>
+    </div>
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Dépenses</span>
+      <span class="block font-headline-md text-headline-md text-error">-{{ resume.depenses }}</span>
+    </div>
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50 col-span-2">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Contenu théorique du tiroir</span>
+      <span class="block font-headline-md text-headline-md text-on-surface">{{ resume.theorique }}</span>
+    </div>
+  </div>
+
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Contenu réel compté <span class="text-error">*</span></label>
+    <p class="font-body-md text-sm text-on-surface-variant mb-2">Comptez les espèces réellement présentes dans le tiroir et saisissez le total.</p>
+    {{ form.fond_reel(id="fond-reel-input", class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-lg text-body-lg mb-4 " ~ ("border-error" if form.fond_reel.errors else "border-outline-variant"), placeholder="0") }}
+    {% for message in form.fond_reel.errors %}
+    <p class="font-body-md text-sm text-error mb-4 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>
+    {% endfor %}
+
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Montant prélevé <span class="text-error">*</span></label>
+    <p class="font-body-md text-sm text-on-surface-variant mb-2">
+      Ce qui sort physiquement du tiroir pour rejoindre
+      {% if compte_akiba %}<strong>{{ compte_akiba.name }}</strong>{% else %}le Compte Akiba{% endif %}
+      — le reste (contenu réel moins ce montant) reste dans le tiroir et sert de suggestion au prochain fond d'ouverture.
+    </p>
+    {% if not compte_akiba %}
+    <p class="font-body-md text-sm text-error mb-2 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">warning</span>Aucun Compte Akiba configuré — voir Administration &gt; Comptes financiers.</p>
+    {% endif %}
+    {{ form.montant_preleve(id="montant-preleve-input", class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-lg text-body-lg mb-1 " ~ ("border-error" if form.montant_preleve.errors else "border-outline-variant"), placeholder="0") }}
+    {% for message in form.montant_preleve.errors %}
+    <p class="font-body-md text-sm text-error mb-2 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>
+    {% endfor %}
+    <button type="button" id="preleve-tout-btn" class="font-label-md text-label-md text-primary mb-4">Tout prélever ({{ "{:,}".format(resume.theorique).replace(",", " ") }} théorique)</button>
+
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Commentaire de clôture <span class="text-on-surface-variant/60 font-normal">(facultatif)</span></label>
+    {{ form.commentaire(class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-md text-body-md resize-y", rows="2", placeholder="RAS...") }}
+
+    <div class="flex gap-3 mt-6">
+      <a href="{{ url_for('caisse.pdv') }}" class="flex-1 h-touch-target-min flex items-center justify-center rounded-full border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+        Annuler
+      </a>
+      <button type="submit" class="flex-1 h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">
+        Clôturer la caisse
+      </button>
+    </div>
+  </form>
+</div>
+  </main>
+</div>
+<script>
+  document.getElementById("preleve-tout-btn").addEventListener("click", () => {
+    const fondReel = document.getElementById("fond-reel-input");
+    document.getElementById("montant-preleve-input").value = fondReel.value || 0;
+  });
+</script>
+{% endblock %}

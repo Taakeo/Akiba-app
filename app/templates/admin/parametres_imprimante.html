@@ -1,0 +1,29 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Imprimante ticket{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("print", "Imprimante ticket / tiroir-caisse") }}
+  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-4">
+    Le tiroir-caisse n'a pas de commande d'ouverture dédiée : il est câblé sur l'imprimante de tickets et s'ouvre uniquement via une impulsion envoyée dans un job d'impression. Indiquez ici le nom exact de l'imprimante tel qu'il apparaît dans Windows (Paramètres &gt; Imprimantes) — pas le nom du modèle physique s'ils diffèrent.
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    {{ field(form.nom_imprimante, help="Ex. « POS-80 ». Doit correspondre exactement au nom affiché dans Windows.") }}
+
+    {{ actions("Enregistrer", url_for("admin.index")) }}
+  </form>
+
+  <form method="post" action="{{ url_for('admin.parametres_imprimante_tester') }}" class="mt-4 pt-4 border-t border-outline-variant/30">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="w-full h-touch-target-min rounded-full border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors flex items-center justify-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">point_of_sale</span>
+      Tester l'ouverture du tiroir
+    </button>
+  </form>
+</div>
+{% endblock %}

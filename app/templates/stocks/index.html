@@ -1,0 +1,63 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Stocks{% endblock %}
+{% block shell_content %}
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Stocks</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">État actuel, mis à jour automatiquement par les achats et les ventes.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('stocks.mouvements') }}" class="h-touch-target-min px-5 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+      <span class="material-symbols-outlined">history</span> Mouvements
+    </a>
+    <a href="{{ url_for('stocks.inventaires') }}" class="h-touch-target-min px-5 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+      <span class="material-symbols-outlined">fact_check</span> Inventaires
+    </a>
+    <a href="{{ url_for('stocks.ajustement') }}" class="h-touch-target-min px-5 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      <span class="material-symbols-outlined">add</span> Ajustement
+    </a>
+  </div>
+</header>
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter mb-8">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface-variant mb-1">Ruptures</p>
+    <p class="font-headline-md text-headline-md text-error">{{ ruptures }}</p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface-variant mb-1">Stock faible</p>
+    <p class="font-headline-md text-headline-md text-on-surface" style="color:#c2740c">{{ faibles }}</p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface-variant mb-1">Valeur du stock (prix d'achat)</p>
+    <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(valeur_stock).replace(",", " ") }}</p>
+  </div>
+</div>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div>
+      <p class="font-label-md text-label-md text-on-surface">{{ item.name }}</p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.categorie.name }}{% if item.sous_categorie %} / {{ item.sous_categorie.name }}{% endif %}</p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if item.statut_stock == "illimite" %}
+      <span class="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-xs flex items-center gap-1">
+        <span class="material-symbols-outlined text-[14px]">all_inclusive</span> Illimité
+      </span>
+      {% elif item.statut_stock == "rupture" %}
+      <span class="px-3 py-1 rounded-full bg-error-container text-on-error-container font-label-md text-xs">Rupture</span>
+      {% elif item.statut_stock == "faible" %}
+      <span class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container font-label-md text-xs">Stock faible</span>
+      {% endif %}
+      {% if item.statut_stock != "illimite" %}
+      <span class="font-headline-md text-body-lg font-bold text-on-surface w-24 text-right">{{ item.stock_quantite }} {{ item.unite }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun produit.</p>
+  {% endfor %}
+</div>
+{% endblock %}

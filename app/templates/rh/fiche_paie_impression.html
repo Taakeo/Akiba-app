@@ -1,0 +1,129 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Fiche de paie {{ salarie.nom }}{% endblock %}
+{% block shell_content %}
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center justify-between mb-6 print:hidden">
+    <a href="{{ url_for('rh.fiche', salarie_id=salarie.id) }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md">
+      <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+      {{ salarie.nom }}
+    </a>
+    <button onclick="window.print()" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      <span class="material-symbols-outlined">print</span>
+      Imprimer
+    </button>
+  </div>
+
+  <div class="feuille-imprimable bg-surface-container-lowest rounded-2xl p-8 ambient-shadow border border-outline-variant/30">
+    {# En-tête : logo + identité légale, même gabarit que les factures (§ cohérence documents officiels). #}
+    <header class="mb-6 flex items-start gap-5">
+      <img src="{{ url_for('static', filename='vendor/logo/akiba-logo.png') }}" alt="" class="h-20 w-auto object-contain flex-shrink-0">
+      <div>
+        <h1 class="font-headline-lg text-headline-lg text-primary">{{ parametres_legaux.raison_sociale }}</h1>
+        {% if parametres_legaux.adresse %}<p class="font-body-md text-sm text-on-surface-variant whitespace-pre-line">{{ parametres_legaux.adresse }}</p>{% endif %}
+        <p class="font-body-md text-sm text-on-surface-variant">
+          {% if parametres_legaux.telephone %}{{ parametres_legaux.telephone }}{% endif %}
+          {% if parametres_legaux.email %} · {{ parametres_legaux.email }}{% endif %}
+        </p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {% if parametres_legaux.nif %}NIF {{ parametres_legaux.nif }}{% endif %}
+          {% if parametres_legaux.stat %} — STAT {{ parametres_legaux.stat }}{% endif %}
+        </p>
+      </div>
+    </header>
+
+    <div class="text-center py-4 mb-6 border-y border-outline-variant/30">
+      <h2 class="font-headline-md text-headline-md text-on-surface uppercase tracking-wide">Fiche de paie</h2>
+      <p class="font-body-md text-sm text-on-surface-variant mt-1">
+        {{ type_label }} du {{ periode_fin.strftime('%d/%m/%Y') }}
+        {% if periode_debut %}(depuis le {{ periode_debut.strftime('%d/%m/%Y') }}){% endif %}
+      </p>
+    </div>
+
+    {# Identité du salarié — tout ce que couvre la fiche salarié (§5.4 spec). #}
+    <section class="mb-6">
+      <h3 class="font-label-md text-label-md text-on-surface-variant uppercase mb-2">Salarié</h3>
+      <div class="grid grid-cols-2 gap-x-6 gap-y-2 font-body-md text-body-md text-on-surface">
+        <div><span class="text-on-surface-variant">Nom</span> — {{ salarie.nom }}</div>
+        <div><span class="text-on-surface-variant">Fonction</span> — {{ salarie.fonction or "—" }}</div>
+        <div><span class="text-on-surface-variant">Type de contrat</span> — {{ salarie.type_contrat or "—" }}</div>
+        <div><span class="text-on-surface-variant">Date d'embauche</span> — {{ salarie.date_embauche.strftime('%d/%m/%Y') if salarie.date_embauche else "—" }}</div>
+        <div><span class="text-on-surface-variant">Poste</span> — {{ salarie.poste.name if salarie.poste else "—" }}</div>
+        <div><span class="text-on-surface-variant">Projet</span> — {{ salarie.projet.name if salarie.projet else "—" }}</div>
+      </div>
+    </section>
+
+    {# Détail de la paie : la ligne de salaire imprimée + tout ce qui a été
+       enregistré depuis la précédente, dans l'ordre chronologique — voir
+       construire_fiche_paie() pour le calcul de la fenêtre. #}
+    <section class="mb-6">
+      <h3 class="font-label-md text-label-md text-on-surface-variant uppercase mb-2">Détail</h3>
+      <table class="w-full font-body-md text-body-md text-on-surface border-collapse">
+        <thead>
+          <tr class="text-left text-on-surface-variant text-xs uppercase border-b border-outline-variant/50">
+            <th class="py-2">Rubrique</th>
+            <th class="py-2">Date</th>
+            <th class="py-2 text-right">Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-outline-variant/20">
+            <td class="py-2 font-bold">{{ type_label }}</td>
+            <td class="py-2">{{ remuneration.date_versement.strftime('%d/%m/%Y') }}</td>
+            <td class="py-2 text-right tabular-nums">{{ "{:,}".format(remuneration.montant).replace(",", " ") }}</td>
+          </tr>
+          {% for m in mouvements %}
+          <tr class="border-b border-outline-variant/20">
+            <td class="py-2">{{ labels_type_remuneration.get(m.type_remuneration, m.type_remuneration) }}{% if m.observations %} <span class="text-xs text-on-surface-variant">({{ m.observations }})</span>{% endif %}</td>
+            <td class="py-2">{{ m.date_versement.strftime('%d/%m/%Y') }}</td>
+            <td class="py-2 text-right tabular-nums {% if m.type_remuneration == 'retenue' %}text-error{% endif %}">
+              {{ "-" if m.type_remuneration in ("retenue", "avance") else "+" }}{{ "{:,}".format(m.montant).replace(",", " ") }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="flex flex-col gap-1 mt-4 pt-4 border-t border-outline-variant/30">
+        <div class="flex justify-between items-end pt-2">
+          <span class="font-headline-md text-lg text-on-surface">Net à payer</span>
+          <span class="font-headline-lg text-headline-lg font-bold text-primary tabular-nums">{{ "{:,}".format(net_a_payer).replace(",", " ") }} Ar</span>
+        </div>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ type_label }} ({{ "{:,}".format(remuneration.montant).replace(",", " ") }})
+          {% if total_primes %} + primes ({{ "{:,}".format(total_primes).replace(",", " ") }}){% endif %}
+          {% if total_retenues %} − retenues ({{ "{:,}".format(total_retenues).replace(",", " ") }}){% endif %}
+          {% if total_avances %} − avances déjà perçues ({{ "{:,}".format(total_avances).replace(",", " ") }}){% endif %}
+        </p>
+        <p class="font-body-md text-xs text-on-surface-variant">
+          Réglé {% if remuneration.moyen_paiement %}via {{ remuneration.moyen_paiement.name }}{% else %}— non versé (dû){% endif %}
+        </p>
+      </div>
+    </section>
+
+    {# Congés (retour utilisateur du 07/08/2026). #}
+    <section class="mb-6">
+      <h3 class="font-label-md text-label-md text-on-surface-variant uppercase mb-2">Congés {{ annee_conges }}</h3>
+      <div class="grid grid-cols-3 gap-x-6 font-body-md text-body-md text-on-surface">
+        <div><span class="text-on-surface-variant">Quota</span> — {{ conges_quota if conges_quota is not none else "—" }} j</div>
+        <div><span class="text-on-surface-variant">Pris</span> — {{ conges_pris }} j</div>
+        <div><span class="text-on-surface-variant">Restants</span> — {{ conges_restants if conges_restants is not none else "—" }} j</div>
+      </div>
+    </section>
+
+    {# Signatures : pas de signature enregistrée côté Akiba (contrairement à
+       l'école) — lignes vierges pour signature manuscrite manuelle. #}
+    <section class="mt-8 pt-6 border-t border-outline-variant/30">
+      <div class="grid grid-cols-2 gap-8 text-center">
+        <div class="flex flex-col gap-3 items-center">
+          <span class="font-label-md text-xs text-on-surface uppercase font-semibold">Signature du salarié</span>
+          <div class="w-full h-16 border-b-2 border-dotted border-outline-variant"></div>
+        </div>
+        <div class="flex flex-col gap-3 items-center">
+          <span class="font-label-md text-xs text-primary uppercase font-bold">Le responsable</span>
+          <div class="w-full h-16 border-b-2 border-dotted border-primary/50"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

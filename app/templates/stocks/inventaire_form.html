@@ -1,0 +1,37 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Nouvel inventaire{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('stocks.inventaires') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Inventaires
+</a>
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("fact_check", "Nouvel inventaire") }}
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    {{ field(form.type_inventaire, help="Général : tous les produits. Par catégorie ou par produit : périmètre restreint.") }}
+
+    <div id="bloc-categorie">
+      {{ field(form.categorie_id) }}
+    </div>
+    <div id="bloc-produit">
+      {{ field(form.produit_id) }}
+    </div>
+
+    {{ actions("Créer l'inventaire", url_for("stocks.inventaires")) }}
+  </form>
+</div>
+<script>
+  const select = document.getElementById("type_inventaire");
+  const blocCategorie = document.getElementById("bloc-categorie");
+  const blocProduit = document.getElementById("bloc-produit");
+  function update() {
+    blocCategorie.classList.toggle("hidden", select.value !== "categorie");
+    blocProduit.classList.toggle("hidden", select.value !== "produit");
+  }
+  select.addEventListener("change", update);
+  update();
+</script>
+{% endblock %}

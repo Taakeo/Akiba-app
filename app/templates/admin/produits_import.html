@@ -1,0 +1,84 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - Import de produits{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.produits') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Produits
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Import de produits</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Créez plusieurs fiches produit d'un coup depuis un fichier Excel.</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter max-w-4xl">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("download", "1. Télécharger le modèle") }}
+    <p class="font-body-md text-body-md text-on-surface-variant mb-4">
+      Le modèle contient les colonnes attendues et une ligne d'exemple. Le Poste, la Catégorie, la Sous-catégorie et le Fournisseur doivent déjà exister dans Administration — sinon la ligne correspondante sera rejetée avec le détail de l'erreur.
+    </p>
+    <a href="{{ url_for('admin.produits_import_modele') }}" class="inline-flex items-center justify-center gap-2 h-touch-target-min px-6 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-[20px]">download</span>
+      Télécharger modele_import_produits.xlsx
+    </a>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("upload_file", "2. Importer le fichier rempli") }}
+    <form method="post" enctype="multipart/form-data">
+      {{ form.hidden_tag() }}
+      {{ field(form.fichier, help="Un produit déjà existant (même nom) est ignoré, jamais écrasé.") }}
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[20px]">playlist_add_check</span>
+        Importer
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if resultat %}
+<div class="max-w-4xl mt-gutter flex flex-col gap-4">
+  {% if resultat.crees %}
+  <div class="bg-tertiary-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-tertiary-container mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">check_circle</span>
+      {{ resultat.crees|length }} produit(s) créé(s)
+    </p>
+    <ul class="font-body-md text-sm text-on-tertiary-container/80 list-disc list-inside">
+      {% for ligne, nom in resultat.crees %}
+      <li>Ligne {{ ligne }} — {{ nom }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if resultat.ignores %}
+  <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">info</span>
+      {{ resultat.ignores|length }} ligne(s) ignorée(s) (déjà existantes)
+    </p>
+    <ul class="font-body-md text-sm text-on-surface-variant list-disc list-inside">
+      {% for ligne, message in resultat.ignores %}
+      <li>Ligne {{ ligne }} — {{ message }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if resultat.erreurs %}
+  <div class="bg-error-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-error-container mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">error</span>
+      {{ resultat.erreurs|length }} ligne(s) en erreur, non importée(s)
+    </p>
+    <ul class="font-body-md text-sm text-on-error-container/80 list-disc list-inside">
+      {% for ligne, message in resultat.erreurs %}
+      <li>Ligne {{ ligne }} — {{ message }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

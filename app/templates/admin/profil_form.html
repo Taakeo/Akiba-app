@@ -1,0 +1,58 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - {{ "Modifier un profil" if profile else "Nouveau profil" }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.profils') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Profils
+</a>
+<div class="max-w-2xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("badge", profile.name if profile else "Nouveau profil") }}
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.name) }}
+      {{ field(form.icon, help="Nom d'icône Material Symbols, ex. « badge ».") }}
+    </div>
+
+    <p class="font-label-md text-label-md text-on-surface mb-2 mt-2">Droits d'accès</p>
+
+    <label class="flex items-center gap-3 p-4 rounded-xl border-2 border-primary bg-primary-container/20 mb-4 cursor-pointer">
+      <input type="checkbox" id="acces-total" name="acces_total" value="1" class="w-5 h-5" {% if acces_total %}checked{% endif %}>
+      <span>
+        <span class="block font-label-md text-label-md text-on-surface">Accès total</span>
+        <span class="block font-body-md text-xs text-on-surface-variant">Tous les droits, y compris ceux ajoutés plus tard — réservé au profil Administrateur.</span>
+      </span>
+    </label>
+
+    <div id="droits-detail" class="grid grid-cols-2 gap-2 mb-6">
+      {% for code, label, icon in permissions_disponibles %}
+      <label class="flex items-center gap-2 p-3 rounded-xl border border-outline-variant/50 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary-container/10">
+        <input type="checkbox" name="permissions" value="{{ code }}" class="permission-checkbox w-5 h-5" {% if code in permissions_actuelles %}checked{% endif %}>
+        <span class="flex items-center gap-2 font-body-md text-sm text-on-surface">
+          <span class="material-symbols-outlined text-[18px] text-on-surface-variant">{{ icon }}</span>
+          {{ label }}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    {{ actions("Enregistrer", url_for("admin.profils")) }}
+  </form>
+</div>
+
+<script>
+  const accesTotal = document.getElementById("acces-total");
+  const detail = document.getElementById("droits-detail");
+  const cases = detail.querySelectorAll(".permission-checkbox");
+
+  function majEtat() {
+    const total = accesTotal.checked;
+    detail.classList.toggle("opacity-40", total);
+    detail.classList.toggle("pointer-events-none", total);
+    cases.forEach((c) => { c.disabled = total; });
+  }
+  accesTotal.addEventListener("change", majEtat);
+  majEtat();
+</script>
+{% endblock %}

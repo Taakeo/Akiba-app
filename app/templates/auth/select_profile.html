@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}AKIBA APP - Connexion{% endblock %}
+{% block content %}
+{% set card_styles = [
+  ("bg-primary-container", "text-on-primary-container"),
+  ("bg-secondary-container", "text-on-secondary-container"),
+  ("bg-surface-container-high", "text-on-surface"),
+  ("bg-tertiary-container", "text-on-tertiary-container"),
+] %}
+<main class="w-full max-w-[1200px] min-h-screen mx-auto flex flex-col items-center justify-center relative p-gutter md:p-container-margin">
+  <header class="text-center mb-12 flex flex-col items-center">
+    <img src="{{ url_for('static', filename='vendor/logo/akiba-logo.png') }}" alt="AKIBA" class="h-32 md:h-40 w-auto object-contain mb-2">
+    <p class="font-body-lg text-body-lg text-on-surface-variant">Bienvenue, veuillez sélectionner votre profil.</p>
+  </header>
+
+  {% if profiles %}
+  <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
+    {% for profile in profiles %}
+    {% set bg, fg = card_styles[loop.index0 % card_styles|length] %}
+    <a href="{{ url_for('auth.select_user', profile_id=profile.id) }}"
+       class="group relative bg-surface-container-lowest rounded-2xl p-8 flex flex-col items-center justify-center gap-6 ambient-shadow hover:-translate-y-1 transition-all duration-300 active:translate-y-0 active:ambient-shadow-pressed min-h-[240px] w-full text-center border border-surface-container-low overflow-hidden">
+      <div class="w-20 h-20 rounded-full {{ bg }} flex items-center justify-center {{ fg }} z-10">
+        <span class="material-symbols-outlined text-[40px]">{{ profile.icon }}</span>
+      </div>
+      <div class="z-10">
+        <h2 class="font-headline-md text-headline-md text-on-surface">{{ profile.name }}</h2>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="font-body-md text-body-md text-on-surface-variant">Aucun profil configuré. Lancez la commande de seed pour créer les profils par défaut.</p>
+  {% endif %}
+</main>
+{% endblock %}

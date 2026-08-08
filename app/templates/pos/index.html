@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% from "pos/_nav.html" import pdv_nav with context %}
+{% block title %}AKIBA APP - Point de Vente{% endblock %}
+{% block content %}
+{# Écran dédié : poste fixe 13" tactile (§2 spec, mono-poste). Pas de mise en
+   page responsive multi-device ici — dimensions et cibles tactiles réglées
+   pour ce matériel précis, cibles ≥ touch-target-min (48px). #}
+<div class="flex h-screen overflow-hidden">
+  {{ pdv_nav("pos") }}
+
+  {# `pdv_nav` est en position fixed (hors flux) : "ml-20" seul décale le
+     contenu de sa largeur (§ layout). Deux bugs de débordement empilés ici
+     (retour utilisateur du 08/08/2026, ticket/total coupés à droite,
+     reproduits et mesurés sans écran réel via CDP/Edge headless) :
+     1) "w-full" calculait 100% de l'écran PUIS ajoutait la marge par-dessus
+        (80px de trop) — supprimé, les pages caisse/*.html qui partagent le
+        même pdv_nav ne l'ont jamais eu ;
+     2) même sans "w-full", un flex item garde par défaut une largeur
+        minimale = celle de son contenu (ex. la barre de catégories, très
+        large) au lieu de suivre flex-1 — "min-w-0" corrige ça, comme déjà
+        fait plus bas sur la colonne catégories/produits. #}
+  <main class="flex-1 min-w-0 flex flex-col h-screen ml-20 bg-surface-container-lowest">
+    <header class="h-20 px-gutter border-b border-surface-container-highest flex items-center justify-between bg-surface-container-lowest z-10 flex-shrink-0 gap-4">
+      <div class="relative w-full max-w-sm">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-on-surface-variant">
+          <span class="material-symbols-outlined">search</span>
+        </div>
+        <input id="search-input" class="w-full pl-12 pr-4 h-touch-target-min bg-surface-container-low border border-outline-variant/50 rounded-full font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Recherche produit ou code-barres..." type="text">
+      </div>
+      <div id="tarif-selector" class="flex bg-surface-container-low rounded-full p-1 border border-outline-variant/30 flex-shrink-0 overflow-x-auto">
+        {% for tt in type_tarifs %}
+        <button type="button" data-tarif="{{ tt.code }}" class="tarif-btn px-5 h-touch-target-min rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant whitespace-nowrap">{{ tt.label }}</button>
+        {% endfor %}
+      </div>
+
+      {# Total théorique du tiroir-caisse en direct (§7.2 spec) — recalculé côté
+         serveur à chaque chargement de la page (après une vente ou un mouvement,
+         on revient toujours ici). #}
+      <a href="{{ url_for('caisse.mouvement') }}" class="flex-shrink-0 flex items-center gap-2 h-touch-target-min px-4 rounded-full bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80 transition-colors" title="Total théorique de la caisse PDV — cliquer pour une entrée/sortie de caisse">
+        <span class="material-symbols-outlined text-[20px]">point_of_sale</span>
+        <span class="font-label-md text-label-md whitespace-nowrap">{{ "{:,}".format(caisse_theorique).replace(",", " ") }} Ar</span>
+      </a>
+
+      {# Dernières ventes de la session, pour éviter une double saisie (§1.6 CDC v1). #}
+      <div class="relative flex-shrink-0">
+        <button id="recent-sales-btn" type="button" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-variant" title="Dernières ventes">
+          <span class="material-symbols-outlined">history</span>
+        </button>
+        <div id="recent-sales-panel" class="hidden absolute right-0 top-14 w-80 bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden z-30">
+          <div class="p-3 border-b border-outline-variant/20">
+            <p class="font-label-md text-label-md text-on-surface">Dernières ventes de la session</p>
+          </div>
+          {% for v in dernieres_ventes %}
+          <div class="flex items-center justify-between p-3 {% if not loop.last %}border-b border-outline-variant/10{% endif %}">
+            <div>
+              <p class="font-body-md text-sm text-on-surface">Ticket #{{ v.id }}</p>
+              <p class="font-body-md text-xs text-on-surface-variant">{{ v.created_at.strftime('%H:%M') }} · {{ v.lignes|length }} article(s) · {{ v.created_by_name }}</p>
+            </div>
+            <span class="font-label-md text-label-md text-on-surface">{{ "{:,}".format(v.total).replace(",", " ") }}</span>
+          </div>
+          {% else %}
+          <p class="p-4 font-body-md text-sm text-on-surface-variant">Aucune vente pour l'instant.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+      {# Postes à gauche (§4.3 spec) : chaque poste vendable au PDV (Boutique,
+         Hébergement/Restauration, Dispensaire...) filtre les catégories
+         affichées en haut, elles-mêmes adaptées au poste choisi. #}
+      <div id="postes-rail" class="w-28 flex-shrink-0 border-r border-surface-container-highest overflow-y-auto py-gutter cursor-grab select-none">
+        <div class="flex flex-col gap-3 px-2">
+          {% for p in postes %}
+          {# Nom affiché avec les "_" remplacés par des espaces (ex.
+             "BOUTIQUE_ATELIER" -> "BOUTIQUE ATELIER") pour que le texte
+             puisse revenir à la ligne dans le bouton au lieu de déborder
+             (retour utilisateur du 07/08/2026) — break-words en filet de
+             sécurité si un mot reste malgré tout trop long. #}
+          <button type="button" data-poste="{{ p.id }}" class="poste-btn flex flex-col items-center justify-center h-24 rounded-2xl bg-surface-container hover:bg-surface-variant text-on-surface-variant border border-transparent px-1">
+            <span class="material-symbols-outlined text-3xl mb-1">{{ p.icon }}</span>
+            <span class="font-label-md text-xs text-center leading-tight break-words w-full">{{ p.name.replace("_", " ") }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {# Catégories du poste sélectionné, entre les produits et la sélection
+           de type de client (tarif) placée dans l'en-tête ci-dessus. Se fait
+           défiler à la barre, mais aussi au doigt/à la souris (voir
+           activerDragDefilement dans pos.js — retour utilisateur du
+           07/08/2026). #}
+        <div id="categories-bar" class="flex-shrink-0 flex items-center gap-2 px-gutter py-3 border-b border-surface-container-highest overflow-x-auto cursor-grab select-none">
+          <button type="button" data-categorie="all" class="categorie-btn flex items-center gap-1.5 shrink-0 h-11 px-4 rounded-full bg-secondary-container text-on-secondary-container touch-active">
+            <span class="material-symbols-outlined text-[20px]">apps</span>
+            <span class="font-label-md text-label-md font-bold">Tout</span>
+          </button>
+          {% for c in categories %}
+          <button type="button" data-categorie="{{ c.id }}" data-poste="{{ c.poste_id }}" class="categorie-btn hidden flex items-center gap-1.5 shrink-0 h-11 px-4 rounded-full bg-surface-container hover:bg-surface-variant text-on-surface-variant">
+            <span class="material-symbols-outlined text-[20px]">{{ c.icon }}</span>
+            <span class="font-label-md text-label-md">{{ c.name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-gutter @container">
+          {# Grille en container queries : s'adapte à l'espace réellement disponible
+             (rail + ticket fixes), pas à la largeur de la fenêtre. Seuils calés sur
+             l'écran cible 1920×1080 13" : à 150% (mise à l'échelle Windows
+             recommandée pour ce panneau, ≈1280px logiques) la zone produits fait
+             ~670px de large une fois le rail et le ticket déduits → 3 colonnes ;
+             à 125%/100% l'espace disponible grandit → 4 colonnes. #}
+          <div id="product-grid" class="grid grid-cols-2 @[560px]:grid-cols-3 @[900px]:grid-cols-4 gap-3"></div>
+          <p id="no-products" class="hidden font-body-md text-body-md text-on-surface-variant text-center mt-12">Aucun produit.</p>
+        </div>
+      </div>
+
+      <div class="w-96 flex-shrink-0 bg-surface border-l border-surface-container-highest flex flex-col">
+        {# Plusieurs clients peuvent commander en même temps mais payer
+           séparément : chaque onglet est un ticket nommé, indépendant,
+           sauvegardé côté serveur — voir pos.js pour la persistance. #}
+        <div id="ticket-tabs" class="flex flex-wrap items-start px-3 pt-3 border-b border-surface-container-highest bg-surface-container-low/50"></div>
+        <div class="p-4 border-b border-surface-container-highest bg-surface-container-low/50">
+          <div class="flex items-center justify-between mb-2">
+            <h3 id="ticket-title" class="font-headline-md text-lg font-bold text-on-surface truncate">Ticket</h3>
+            <button id="clear-cart" type="button" class="w-11 h-11 flex items-center justify-center text-error hover:bg-error-container rounded-full flex-shrink-0" title="Vider le ticket">
+              <span class="material-symbols-outlined text-[22px]">delete</span>
+            </button>
+          </div>
+          <button id="client-select-btn" type="button" class="w-full flex items-center gap-2 h-11 px-3 rounded-full bg-surface-container-lowest border border-outline-variant/50 text-left">
+            <span class="material-symbols-outlined text-[20px] text-on-surface-variant">person</span>
+            <span id="client-select-label" class="font-body-md text-sm text-on-surface flex-1 truncate">Client de passage</span>
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">expand_more</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-2">
+          <ul id="cart-lines" class="flex flex-col gap-2"></ul>
+          <p id="cart-empty" class="p-6 text-center font-body-md text-body-md text-on-surface-variant">Ticket vide.</p>
+        </div>
+
+        <div class="p-4 bg-surface-container-low border-t border-surface-container-highest flex flex-col gap-3">
+          <div class="flex flex-col gap-1 px-1">
+            <div class="flex justify-between font-body-md text-sm text-on-surface-variant">
+              <span>Sous-total</span>
+              <span id="sous-total">0</span>
+            </div>
+            <div class="flex justify-between items-end mt-1 pt-2 border-t border-outline-variant/30">
+              <span class="font-headline-md text-lg text-on-surface">Total</span>
+              <span id="total" class="font-headline-lg text-headline-lg font-bold text-primary">0</span>
+            </div>
+          </div>
+          <button id="checkout-btn" type="button" class="w-full h-16 rounded-full bg-primary text-on-primary font-headline-md text-xl font-bold ambient-shadow flex items-center justify-center gap-3 disabled:opacity-40" disabled>
+            <span class="material-symbols-outlined text-2xl">payment</span>
+            Encaisser
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="client-modal" class="hidden fixed inset-0 bg-inverse-surface/40 z-50 flex items-center justify-center p-gutter">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-md ambient-shadow">
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Client</h3>
+    <button id="client-passage-btn" type="button" class="w-full h-touch-target-min mb-4 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md">
+      Client de passage
+    </button>
+    <input id="client-search" type="text" placeholder="Rechercher un client enregistré..."
+           class="w-full h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl mb-3">
+    <div id="client-list" class="flex flex-col gap-1 max-h-72 overflow-y-auto mb-4"></div>
+    <button id="client-modal-cancel" type="button" class="w-full h-touch-target-min rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Fermer</button>
+  </div>
+</div>
+
+<div id="checkout-modal" class="hidden fixed inset-0 bg-inverse-surface/40 z-50 flex items-center justify-center p-gutter">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-md ambient-shadow">
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Paiement</h3>
+    <p class="font-body-md text-body-md text-on-surface-variant mb-2">Total à encaisser : <span id="modal-total" class="font-bold text-on-surface"></span></p>
+    <div id="paiement-rows" class="flex flex-col gap-2 mb-2"></div>
+    <button id="add-paiement" type="button" class="h-touch-target-min px-2 font-label-md text-label-md text-primary mb-2">+ Ajouter un moyen de paiement</button>
+    <label id="credit-row" class="hidden flex items-center gap-2 mb-2 font-body-md text-sm text-on-surface-variant">
+      <input type="checkbox" id="credit-checkbox" class="w-5 h-5">
+      Laisser le reste à crédit sur la fiche client
+    </label>
+    <p class="font-body-md text-body-md mb-4">Reste à payer : <span id="modal-reste" class="font-bold"></span></p>
+
+    <div class="mb-4 pt-4 border-t border-outline-variant/30">
+      <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Montant reçu du client <span class="text-on-surface-variant/60 font-normal">(facultatif — calcule la monnaie à rendre)</span></label>
+      <input id="montant-recu" type="number" min="0" placeholder="Ex. 20000" class="w-full h-12 px-3 bg-surface-container-low border border-outline-variant rounded-xl font-body-md text-body-md">
+      <p id="modal-rendu-row" class="hidden font-body-md text-body-md mt-2 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary text-[20px]">payments</span>
+        Monnaie à rendre : <span id="modal-rendu" class="font-bold text-secondary"></span>
+      </p>
+    </div>
+
+    <p id="modal-error" class="hidden font-label-md text-label-md text-error mb-4"></p>
+    <div class="flex gap-3">
+      <button id="modal-cancel" type="button" class="flex-1 h-touch-target-min rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Annuler</button>
+      <button id="modal-confirm" type="button" class="flex-1 h-touch-target-min rounded-full bg-primary text-on-primary font-label-md text-label-md">Valider la vente</button>
+    </div>
+  </div>
+</div>
+
+<script id="pos-data" type="application/json">
+{
+  "produits": {{ produits_json | tojson }},
+  "typeTarifs": [{% for tt in type_tarifs %}{"id": {{ tt.id }}, "code": {{ tt.code | tojson }}, "label": {{ tt.label | tojson }}, "isDefault": {{ tt.is_default | tojson }}}{{ "," if not loop.last }}{% endfor %}],
+  "moyensPaiement": [{% for mp in moyens_paiement %}{"id": {{ mp.id }}, "name": {{ mp.name | tojson }}, "devise": {{ mp.compte_financier.devise | tojson }}}{{ "," if not loop.last }}{% endfor %}],
+  "ariaryPourUnEuro": {{ taux_change.ariary_pour_un_euro | tojson }},
+  "clients": [{% for c in clients %}{"id": {{ c.id }}, "nom": {{ c.nom | tojson }}, "typeClient": {{ c.type_client | tojson }}}{{ "," if not loop.last }}{% endfor %}],
+  "checkoutUrl": {{ url_for('pos.creer_vente') | tojson }},
+  "ticketsUrl": {{ url_for('pos.tickets_liste') | tojson }},
+  "csrfToken": {{ csrf_token() | tojson }}
+}
+</script>
+<script src="{{ url_for('static', filename='js/pos.js') }}"></script>
+{% endblock %}

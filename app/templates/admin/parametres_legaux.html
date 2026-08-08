@@ -1,0 +1,31 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Informations légales{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("gavel", "Informations légales") }}
+  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-4">
+    Reprises telles quelles sur chaque facture officielle générée depuis le Point de Vente ou la fiche client. Un changement ici n'affecte jamais les factures déjà émises.
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    {{ field(form.raison_sociale) }}
+    {{ field(form.adresse) }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.telephone) }}
+      {{ field(form.email) }}
+    </div>
+    <div class="grid grid-cols-3 gap-x-4">
+      {{ field(form.nif) }}
+      {{ field(form.stat) }}
+      {{ field(form.rcs) }}
+    </div>
+
+    {{ actions("Enregistrer", url_for("admin.index")) }}
+  </form>
+</div>
+{% endblock %}

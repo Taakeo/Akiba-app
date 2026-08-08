@@ -1,0 +1,28 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Modifier une fabrication{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('production.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Production
+</a>
+<div class="max-w-3xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("edit", "Modifier la fabrication") }}
+  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-6">
+    {{ fabrication.quantite }} × {{ fabrication.produit.name }} — déclaré par {{ fabrication.responsable_nom }}.
+    Le produit et la quantité ne sont plus modifiables (le stock a déjà été mis à jour) ; seule la traçabilité peut être corrigée.
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    {{ field(form.date_fabrication) }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.numero_lot, help="Pour retrouver rapidement ce lot en cas de problème qualité.") }}
+      {{ field(form.ddm_dlc, help="Date de durabilité minimale ou limite de consommation.") }}
+    </div>
+    {{ field(form.observations, help="Toute précision utile sur cette fabrication.") }}
+
+    {{ actions("Enregistrer", url_for("production.index")) }}
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Journal d'activité{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Journal d'activité</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+    Historique de toutes les manipulations enregistrées par l'application — ventes, achats, stock, RH, caisse,
+    comptes, administration — quel que soit le profil qui les a faites, y compris l'administrateur.
+  </p>
+</header>
+
+<form method="get" class="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30 mb-6 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Du</label>
+    <input type="date" name="depuis" value="{{ filtre_depuis }}" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Au</label>
+    <input type="date" name="jusqua" value="{{ filtre_jusqua }}" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Utilisateur</label>
+    <input type="text" name="utilisateur" value="{{ filtre_utilisateur }}" placeholder="Nom..." class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Module</label>
+    <select name="module" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+      <option value="">Tous</option>
+      {% for code, label in modules %}
+      <option value="{{ code }}" {% if filtre_module == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="h-11 px-6 rounded-full bg-primary text-on-primary font-label-md text-label-md">Filtrer</button>
+  {% if filtre_depuis or filtre_jusqua or filtre_utilisateur or filtre_module %}
+  <a href="{{ url_for('admin.journal') }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Réinitialiser</a>
+  {% endif %}
+</form>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for e in entrees %}
+  <div class="flex items-start gap-4 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div class="w-36 flex-shrink-0">
+      <p class="font-body-md text-sm text-on-surface">{{ e.horodatage.strftime('%d/%m/%Y') }}</p>
+      <p class="font-body-md text-xs text-on-surface-variant">{{ e.horodatage.strftime('%H:%M') }}</p>
+    </div>
+    <span class="flex-shrink-0 h-7 px-3 flex items-center rounded-full bg-secondary-container text-on-secondary-container font-label-md text-xs whitespace-nowrap">
+      {{ e.module_label }}
+    </span>
+    <div class="flex-1 min-w-0">
+      <p class="font-body-md text-body-md text-on-surface truncate">{{ e.description }}</p>
+    </div>
+    <p class="w-40 flex-shrink-0 text-right font-label-md text-label-md text-on-surface-variant truncate">{{ e.utilisateur }}</p>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune activité pour ces filtres.</p>
+  {% endfor %}
+</div>
+{% if entrees|length >= 300 %}
+<p class="font-body-md text-xs text-on-surface-variant mt-3">Affichage limité aux 300 dernières entrées correspondant aux filtres — affinez la période pour voir plus loin.</p>
+{% endif %}
+{% endblock %}

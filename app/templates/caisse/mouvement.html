@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "pos/_nav.html" import pdv_nav with context %}
+{% block title %}AKIBA APP - Mouvement de caisse{% endblock %}
+{% from "_form_macros.html" import section_header %}
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+  {{ pdv_nav("caisse") }}
+  <main class="flex-1 ml-20 p-gutter md:p-container-margin min-h-screen overflow-y-auto">
+<a href="{{ url_for('caisse.pdv') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Retour
+</a>
+<div class="max-w-2xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("swap_horiz", "Entrée / Sortie d'argent") }}
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="flex bg-surface-container-low rounded-full p-1 border border-outline-variant/30 mb-6">
+      {% for subfield in form.type_mouvement %}
+      <label class="flex-1 text-center h-touch-target-min rounded-full flex items-center justify-center font-label-md text-label-md cursor-pointer has-[:checked]:bg-surface-container-lowest has-[:checked]:shadow-sm has-[:checked]:text-primary has-[:checked]:font-bold text-on-surface-variant">
+        {{ subfield }} {{ subfield.label.text }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Origine <span class="text-error">*</span></label>
+    <p class="font-body-md text-xs text-on-surface-variant mb-2">D'où sort (ou vers où rentre) cet argent — détermine les moyens de paiement proposés ci-dessous.</p>
+    <div id="origine-choix" class="grid grid-cols-2 gap-3 mb-4">
+      {% for subfield in form.origine %}
+      <label class="flex items-center gap-2 p-3 rounded-xl border-2 border-outline-variant/50 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary-container/10">
+        {{ subfield }}
+        <span class="material-symbols-outlined text-on-surface-variant">{{ "point_of_sale" if subfield.data == "pdv" else "account_balance" }}</span>
+        <span class="font-body-md text-sm text-on-surface">{{ subfield.label.text }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% for message in form.origine.errors %}
+    <p class="font-body-md text-sm text-error mb-2 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>
+    {% endfor %}
+
+    <div class="grid grid-cols-2 gap-x-4 mb-4">
+      <div>
+        <label class="block font-label-md text-label-md text-on-surface mb-1">Montant <span class="text-error">*</span></label>
+        {{ form.montant(class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-lg text-body-lg " ~ ("border-error" if form.montant.errors else "border-outline-variant"), placeholder="0") }}
+      </div>
+      <div>
+        <label class="block font-label-md text-label-md text-on-surface mb-1">Moyen de paiement <span class="text-error">*</span></label>
+        <div class="relative">
+          {{ form.moyen_paiement_id(class="w-full h-touch-target-min pl-4 pr-10 appearance-none bg-surface border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-md text-body-md") }}
+          <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+        </div>
+      </div>
+    </div>
+
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Motif <span class="text-error">*</span></label>
+    {{ form.motif(class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-md text-body-md " ~ ("border-error" if form.motif.errors else "border-outline-variant"), placeholder="Ex. Apport de monnaie, remboursement client...") }}
+    {% for message in form.motif.errors %}
+    <p class="font-body-md text-sm text-error mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>
+    {% endfor %}
+
+    <div class="flex gap-3 mt-6">
+      <a href="{{ url_for('caisse.pdv') }}" class="flex-1 h-touch-target-min flex items-center justify-center rounded-full border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+        Annuler
+      </a>
+      <button type="submit" class="flex-1 h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">
+        Valider et ouvrir le tiroir
+      </button>
+    </div>
+  </form>
+</div>
+  </main>
+</div>
+
+<script>
+  const moyensPhysiques = new Set([{% for m in moyens if m.compte_financier.is_caisse_physique %}{{ m.id }}{{ "," if not loop.last }}{% endfor %}]);
+  const origineRadios = document.querySelectorAll('#origine-choix input[name="origine"]');
+  const moyenSelect = document.getElementById("{{ form.moyen_paiement_id.id }}");
+  const optionsOriginales = Array.from(moyenSelect.options);
+
+  function appliquerFiltre() {
+    const origine = document.querySelector('#origine-choix input[name="origine"]:checked')?.value;
+    if (!origine) return;
+    const valeurActuelle = moyenSelect.value;
+    moyenSelect.innerHTML = "";
+    optionsOriginales
+      .filter((opt) => (origine === "pdv") === moyensPhysiques.has(parseInt(opt.value, 10)))
+      .forEach((opt) => moyenSelect.appendChild(opt.cloneNode(true)));
+    // Garde la sélection précédente si elle reste valide dans le nouveau
+    // filtre, sinon retombe sur le premier moyen proposé plutôt que de
+    // laisser le champ vide.
+    if (Array.from(moyenSelect.options).some((o) => o.value === valeurActuelle)) {
+      moyenSelect.value = valeurActuelle;
+    }
+  }
+
+  origineRadios.forEach((r) => r.addEventListener("change", appliquerFiltre));
+  appliquerFiltre();
+</script>
+{% endblock %}

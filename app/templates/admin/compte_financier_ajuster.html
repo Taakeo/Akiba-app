@@ -1,0 +1,43 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Ajuster {{ compte.name }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.comptes_financiers') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Comptes financiers
+</a>
+
+<div class="max-w-xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8">
+  {{ section_header("account_balance", compte.name) }}
+  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-4">
+    Solde actuel dans l'application : <strong>{{ "{:,}".format(compte.solde).replace(",", " ") }} {{ compte.devise }}</strong>.
+    Indiquez le solde réel constaté (relevé bancaire, comptage physique, solde mobile money...) et le motif de la correction.
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    {{ field(form.nouveau_solde, help="En " ~ compte.devise ~ ".") }}
+    {{ field(form.motif, help="Ex. « Solde de départ réel au lancement de l'application », « Relevé bancaire du 05/08 »...") }}
+
+    {{ actions("Enregistrer la correction", url_for("admin.comptes_financiers")) }}
+  </form>
+</div>
+
+{% if historique %}
+<div class="max-w-xl">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Historique des corrections</h3>
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% for a in historique %}
+    <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+      <div class="min-w-0">
+        <p class="font-body-md text-body-md text-on-surface">{{ a.motif }}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ a.created_at.strftime('%d/%m/%Y %H:%M') }} — par {{ a.created_by_name }}</p>
+      </div>
+      <span class="font-label-md text-label-md flex-shrink-0 ml-2 {% if a.ecart >= 0 %}text-secondary{% else %}text-error{% endif %}">
+        {{ a.ancien_solde }} → {{ a.nouveau_solde }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

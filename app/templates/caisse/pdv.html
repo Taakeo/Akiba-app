@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "pos/_nav.html" import pdv_nav with context %}
+{% block title %}AKIBA APP - Caisse{% endblock %}
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+  {{ pdv_nav("caisse") }}
+  <main class="flex-1 ml-20 p-gutter md:p-container-margin min-h-screen overflow-y-auto">
+<header class="mb-8">
+  <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Caisse du Point de Vente</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-2">Ouverture, clôture et entrées-sorties d'argent de ce poste. Pour la vue d'ensemble de tous les comptes d'Akiba, voir <a href="{{ url_for('caisse.status') }}" class="text-primary underline">Comptes</a>.</p>
+</header>
+
+{% if session %}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-gutter mb-8">
+  <a href="{{ url_for('caisse.mouvement') }}" class="flex items-center justify-center gap-3 bg-secondary-container text-on-secondary-container h-16 rounded-full font-label-md text-label-md hover:bg-secondary-fixed transition-colors ambient-shadow">
+    <span class="material-symbols-outlined text-2xl">swap_vert</span>
+    Entrée / Sortie d'argent
+  </a>
+  <a href="{{ url_for('caisse.fermeture') }}" class="flex items-center justify-center gap-3 border-2 border-primary text-primary bg-surface h-16 rounded-full font-label-md text-label-md hover:bg-surface-container-lowest transition-colors ambient-shadow">
+    <span class="material-symbols-outlined text-2xl">lock</span>
+    Clôturer la caisse
+  </a>
+</div>
+
+<div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="font-headline-md text-headline-md text-on-surface">Session en cours</h3>
+    <span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-md text-[12px]">Caisse ouverte</span>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Fond initial</span>
+      <span class="block font-headline-md text-headline-md text-on-surface">{{ session.fond_ouverture }}</span>
+    </div>
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Recettes</span>
+      <span class="block font-headline-md text-headline-md text-on-surface">{{ theorique.recettes }}</span>
+    </div>
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Dépenses</span>
+      <span class="block font-headline-md text-headline-md text-error">-{{ theorique.depenses }}</span>
+    </div>
+    <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50">
+      <span class="block font-label-md text-label-md text-on-surface-variant mb-1">Théorique (caisse espèces)</span>
+      <span class="block font-headline-md text-headline-md text-on-surface">{{ theorique.theorique }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="mb-8">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Compte de la session — par moyen de paiement</h3>
+  <p class="font-body-md text-sm text-on-surface-variant mb-4">
+    Ce qui a été encaissé pendant ce service, moyen par moyen — à titre d'information (l'argent mobile money/banque ne passe pas par le tiroir physique). Vue Akiba globale et historique complet : <a href="{{ url_for('caisse.status') }}" class="text-primary underline">Comptes</a>.
+  </p>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+    {% for r in resume_moyens %}
+    <div class="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30">
+      <p class="font-label-md text-label-md text-on-surface-variant mb-1 truncate" title="{{ r.moyen.name }}">{{ r.moyen.name }}</p>
+      <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(r.total).replace(",", " ") }} <span class="text-sm font-normal text-on-surface-variant">{{ r.compte.devise }}</span></p>
+      {% if r.fond_ouverture or r.encaissements_ventes or r.entrees or r.sorties or r.achats %}
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">
+        {% if r.fond_ouverture %}Fond initial {{ "{:,}".format(r.fond_ouverture).replace(",", " ") }}{% endif %}
+        {% if r.encaissements_ventes %} · Ventes {{ "{:,}".format(r.encaissements_ventes).replace(",", " ") }}{% endif %}
+        {% if r.entrees %} · Entrées {{ "{:,}".format(r.entrees).replace(",", " ") }}{% endif %}
+        {% if r.sorties %} · Sorties -{{ "{:,}".format(r.sorties).replace(",", " ") }}{% endif %}
+        {% if r.achats %} · Achats -{{ "{:,}".format(r.achats).replace(",", " ") }}{% endif %}
+      </p>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="col-span-full font-body-md text-body-md text-on-surface-variant">Aucun moyen de paiement configuré.</p>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8 flex items-center justify-between flex-wrap gap-4">
+  <div>
+    <h3 class="font-headline-md text-headline-md text-on-surface">Caisse fermée</h3>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Ouvrez la caisse pour commencer la journée.</p>
+  </div>
+  <a href="{{ url_for('caisse.ouverture') }}" class="h-touch-target-min px-8 flex items-center bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    Ouvrir la caisse
+  </a>
+</div>
+{% endif %}
+
+<div>
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Transactions et tickets de la session</h3>
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow overflow-hidden border border-outline-variant/30">
+    {% if events %}
+      {% for event in events %}
+      {% set contenu %}
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full {% if event.montant >= 0 %}bg-secondary-container text-on-secondary-container{% else %}bg-error-container text-on-error-container{% endif %} flex items-center justify-center">
+            <span class="material-symbols-outlined">{{ event.icon }}</span>
+          </div>
+          <div>
+            <p class="font-label-md text-label-md text-on-surface">{{ event.titre }}</p>
+            <p class="font-body-md text-[14px] text-on-surface-variant">{{ event.sous_titre }}</p>
+          </div>
+        </div>
+        <span class="font-headline-md text-body-lg font-bold text-on-surface">{{ "%+d"|format(event.montant) }}</span>
+      {% endset %}
+      {% if event.lien %}
+      <a href="{{ event.lien }}" class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} hover:bg-surface-container-low transition-colors">{{ contenu }}</a>
+      {% else %}
+      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">{{ contenu }}</div>
+      {% endif %}
+      {% endfor %}
+    {% else %}
+      <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune transaction pour cette session.</p>
+    {% endif %}
+  </div>
+</div>
+  </main>
+</div>
+{% endblock %}

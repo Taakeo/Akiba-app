@@ -1,0 +1,23 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Code PIN généré{% endblock %}
+{% block shell_content %}
+<div class="max-w-md mx-auto">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 text-center">
+    <div class="w-14 h-14 mx-auto rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-4">
+      <span class="material-symbols-outlined text-3xl">password</span>
+    </div>
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Code PIN de {{ sub_profile.full_name }}</h3>
+    <p class="font-body-md text-body-md text-on-surface-variant mb-6">
+      Communiquez-le à l'utilisateur maintenant — il ne sera plus jamais affiché.
+    </p>
+
+    <div class="bg-surface-container-low rounded-2xl py-6 mb-6">
+      <span class="font-headline-lg text-headline-lg font-bold text-primary tracking-[0.5em]">{{ pin }}</span>
+    </div>
+
+    <a href="{{ url_for('admin.utilisateurs') }}" class="w-full h-touch-target-min flex items-center justify-center bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      J'ai noté le code, continuer
+    </a>
+  </div>
+</div>
+{% endblock %}

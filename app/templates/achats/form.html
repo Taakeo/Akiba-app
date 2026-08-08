@@ -1,0 +1,145 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Nouvel achat{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('achats.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Achats
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Nouvel achat</h2>
+  {% if modele %}
+  <p class="font-body-md text-sm text-on-surface-variant mt-1 flex items-center gap-1">
+    <span class="material-symbols-outlined text-[16px]">bolt</span>
+    Prérempli depuis le modèle « {{ modele.nom }} » — vérifiez et ajustez avant d'enregistrer.
+  </p>
+  {% endif %}
+</header>
+
+<form method="post" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter max-w-4xl">
+  {{ form.hidden_tag() }}
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col gap-1 lg:col-span-2">
+    {{ field(form.nom, help="Ex. « Réparation toiture atelier » — facultatif, aide à retrouver l'achat rapidement dans la liste.") }}
+    <p class="font-label-md text-label-md text-on-surface-variant mb-2">Type d'achat <span class="text-error">*</span></p>
+    <div class="flex bg-surface-container-low rounded-full p-1 border border-outline-variant/30 w-fit">
+      {% for subfield in form.type_achat %}
+      <label class="px-5 h-touch-target-min rounded-full flex items-center justify-center font-label-md text-label-md cursor-pointer has-[:checked]:bg-surface-container-lowest has-[:checked]:shadow-sm has-[:checked]:text-primary has-[:checked]:font-bold text-on-surface-variant">
+        {{ subfield }} {{ subfield.label.text }}
+      </label>
+      {% endfor %}
+    </div>
+    <p class="font-body-md text-xs text-on-surface-variant mt-2">
+      Un achat de stock augmente automatiquement le stock du produit choisi. Une dépense générale (téléphone, transport...) n'a aucun effet sur le stock.
+    </p>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("category", "Classement comptable") }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.poste_id) }}
+      {{ field(form.projet_id, help="Si l'achat est financé par un projet partenaire précis.") }}
+    </div>
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.categorie_id) }}
+      {{ field(form.sous_categorie_id, help="La liste se filtre selon la catégorie choisie.") }}
+    </div>
+    {{ field(form.fournisseur_id) }}
+    {{ field(form.date_achat) }}
+  </div>
+
+  <div class="flex flex-col gap-gutter">
+    <div id="bloc-stock" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("inventory_2", "Article acheté") }}
+      {{ field(form.produit_id, help="Choisi dans le catalogue Produits, pour que le stock soit mis à jour automatiquement.") }}
+      <a href="{{ url_for('admin.produit_nouveau') }}" target="_blank" class="inline-flex items-center gap-1 -mt-3 mb-4 font-label-md text-label-md text-primary">
+        <span class="material-symbols-outlined text-[18px]">add_circle</span>
+        L'article n'existe pas encore ? Créer une fiche produit
+      </a>
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.quantite) }}
+        {{ field(form.prix_unitaire, help="Montant total calculé automatiquement (quantité × prix).") }}
+      </div>
+    </div>
+
+    <div id="bloc-depense" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("payments", "Montant de la dépense") }}
+      <div class="mb-5">
+        <label for="{{ form.montant_total.id }}" class="block font-label-md text-label-md text-on-surface mb-1">
+          {{ form.montant_total.label.text }} <span class="text-error">*</span>
+        </label>
+        {{ form.montant_total(required=true, class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow " ~ ("border-error" if form.montant_total.errors else "border-outline-variant")) }}
+        {% for message in form.montant_total.errors %}
+        <p class="font-body-md text-sm text-error mt-1">{{ message }}</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("account_balance", "Compte à débiter") }}
+      <div id="origine-choix" class="grid grid-cols-2 gap-3 mb-4">
+        {% for subfield in form.origine %}
+        <label class="flex items-center gap-2 p-3 rounded-xl border-2 border-outline-variant/50 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary-container/10">
+          {{ subfield }}
+          <span class="material-symbols-outlined text-on-surface-variant">{{ "point_of_sale" if subfield.data == "pdv" else "account_balance" }}</span>
+          <span class="font-body-md text-sm text-on-surface">{{ subfield.label.text }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% for message in form.origine.errors %}
+      <p class="font-body-md text-sm text-error mb-2">{{ message }}</p>
+      {% endfor %}
+      {{ field(form.moyen_paiement_id, help="La liste se filtre selon le compte choisi ci-dessus.") }}
+      {{ field(form.observations, help="Toute précision utile (numéro de facture, contexte...).") }}
+      {{ field(form.documents, help="Facture, devis, photo ou bon de livraison — PDF, JPG, PNG ou WEBP.") }}
+    </div>
+
+    {{ actions("Enregistrer l'achat", url_for("achats.index")) }}
+  </div>
+</form>
+
+<script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>
+<script id="sous-categories-json" type="application/json">{{ sous_categories_json | tojson }}</script>
+<script src="{{ url_for('static', filename='js/cascade.js') }}"></script>
+<script>
+  const radios = document.querySelectorAll('input[name="type_achat"]');
+  const blocStock = document.getElementById("bloc-stock");
+  const blocDepense = document.getElementById("bloc-depense");
+
+  function updateBlocs() {
+    const value = document.querySelector('input[name="type_achat"]:checked')?.value;
+    blocStock.classList.toggle("hidden", value !== "stock");
+    blocDepense.classList.toggle("hidden", value !== "depense");
+  }
+
+  radios.forEach((r) => r.addEventListener("change", updateBlocs));
+  updateBlocs();
+
+  initCascadeSousCategorie("poste_id", "categorie_id", "categories-json", {{ (form.categorie_id.data or 0) | tojson }});
+  initCascadeSousCategorie("categorie_id", "sous_categorie_id", "sous-categories-json", {{ (form.sous_categorie_id.data or 0) | tojson }});
+
+  // Filtre le moyen de paiement selon le compte choisi (PDV = tiroir
+  // physique / Compte Akiba = coffre-fort) — même patron que
+  // caisse/mouvement.html (retour utilisateur du 08/08/2026).
+  const moyensPhysiques = new Set([{% for m in moyens if m.compte_financier.is_caisse_physique %}{{ m.id }}{{ "," if not loop.last }}{% endfor %}]);
+  const origineRadios = document.querySelectorAll('#origine-choix input[name="origine"]');
+  const moyenSelect = document.getElementById("{{ form.moyen_paiement_id.id }}");
+  const optionsOriginalesMoyen = Array.from(moyenSelect.options);
+
+  function appliquerFiltreOrigine() {
+    const origine = document.querySelector('#origine-choix input[name="origine"]:checked')?.value;
+    if (!origine) return;
+    const valeurActuelle = moyenSelect.value;
+    moyenSelect.innerHTML = "";
+    optionsOriginalesMoyen
+      .filter((opt) => (origine === "pdv") === moyensPhysiques.has(parseInt(opt.value, 10)))
+      .forEach((opt) => moyenSelect.appendChild(opt.cloneNode(true)));
+    if (Array.from(moyenSelect.options).some((o) => o.value === valeurActuelle)) {
+      moyenSelect.value = valeurActuelle;
+    }
+  }
+
+  origineRadios.forEach((r) => r.addEventListener("change", appliquerFiltreOrigine));
+  appliquerFiltreOrigine();
+</script>
+{% endblock %}

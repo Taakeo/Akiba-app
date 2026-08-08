@@ -1,0 +1,65 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Rapport des achats{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('rapports.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Rapports
+</a>
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Rapport des achats</h2>
+  <div class="flex gap-2">
+    <a href="{{ url_for('rapports.achats_export', debut=date_debut.isoformat(), fin=date_fin.isoformat(), group_by=group_by) }}"
+       class="h-touch-target-min px-6 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+      <span class="material-symbols-outlined">download</span> .xlsx
+    </a>
+    <a href="{{ url_for('rapports.achats_export_pdf', debut=date_debut.isoformat(), fin=date_fin.isoformat(), group_by=group_by) }}"
+       class="h-touch-target-min px-6 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+      <span class="material-symbols-outlined">picture_as_pdf</span> .pdf
+    </a>
+  </div>
+</header>
+
+<form method="get" class="flex flex-wrap items-end gap-4 mb-6 bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30">
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-2">Du</label>
+    <input type="date" name="debut" value="{{ date_debut.isoformat() }}" class="h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-2">Au</label>
+    <input type="date" name="fin" value="{{ date_fin.isoformat() }}" class="h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-2">Regrouper par</label>
+    <select name="group_by" class="h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl">
+      {% for code, label in groupes %}
+      <option value="{{ code }}" {% if code == group_by %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="h-touch-target-min px-6 bg-primary text-on-primary rounded-full font-label-md text-label-md">Filtrer</button>
+</form>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  <div class="grid grid-cols-3 gap-4 p-4 border-b border-outline-variant/20 font-label-md text-label-md text-on-surface-variant">
+    <span>{{ groupes|selectattr("0", "equalto", group_by)|map(attribute="1")|first }}</span>
+    <span class="text-right">Nombre d'achats</span>
+    <span class="text-right">Montant</span>
+  </div>
+  {% for ligne in lignes %}
+  <div class="grid grid-cols-3 gap-4 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <span class="font-body-md text-body-md text-on-surface">{{ ligne.libelle }}</span>
+    <span class="text-right font-body-md text-body-md text-on-surface-variant">{{ ligne.nombre }}</span>
+    <span class="text-right font-label-md text-label-md text-on-surface">{{ "{:,}".format(ligne.total).replace(",", " ") }}</span>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun achat sur cette période.</p>
+  {% endfor %}
+  {% if lignes %}
+  <div class="grid grid-cols-3 gap-4 p-4 bg-surface-container-low">
+    <span class="font-headline-md text-body-lg font-bold text-on-surface">Total</span>
+    <span></span>
+    <span class="text-right font-headline-md text-body-lg font-bold text-primary">{{ "{:,}".format(total).replace(",", " ") }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

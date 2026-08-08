@@ -1,0 +1,205 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - {{ salarie.nom }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('rh.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Ressources humaines
+</a>
+
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">{{ salarie.nom }}</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+      {{ salarie.fonction or "—" }}{% if salarie.type_contrat %} · {{ salarie.type_contrat }}{% endif %}
+      {% if salarie.date_embauche %} · Embauché le {{ salarie.date_embauche.strftime('%d/%m/%Y') }}{% endif %}
+    </p>
+    <p class="font-body-md text-sm text-on-surface-variant mt-1">
+      {% if salarie.salaire_habituel %}
+      {{ "{:,}".format(salarie.salaire_habituel).replace(",", " ") }} / {{ {"mensuel": "mois", "hebdomadaire": "semaine", "journalier": "jour"}.get(salarie.frequence_remuneration, salarie.frequence_remuneration) }}
+      {% else %}
+      Salaire non renseigné
+      {% endif %}
+      {% if conges_quota is not none %}
+      · Congés payés {{ annee_courante }} : {{ conges_pris }}/{{ conges_quota }} jours pris{% if conges_restants is not none %} ({{ conges_restants }} restant{{ "s" if conges_restants != 1 }}){% endif %}
+      {% endif %}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('rh.modifier', salarie_id=salarie.id) }}" class="h-touch-target-min px-5 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Modifier</a>
+    <form method="post" action="{{ url_for('rh.toggle_archive', salarie_id=salarie.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="h-touch-target-min px-5 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+        {{ "Réactiver" if salarie.is_archived else "Archiver" }}
+      </button>
+    </form>
+  </div>
+</header>
+
+<div class="rounded-2xl p-4 mb-6 flex items-center gap-3 {% if salarie.solde_du > 0 %}bg-primary-container text-on-primary-container{% elif salarie.solde_du < 0 %}bg-error-container text-on-error-container{% else %}bg-surface-container text-on-surface-variant{% endif %}">
+  <span class="material-symbols-outlined">account_balance_wallet</span>
+  <p class="font-body-md text-body-md">
+    {% if salarie.solde_du > 0 %}
+    Akiba doit encore <strong>{{ "{:,}".format(salarie.solde_du).replace(",", " ") }}</strong> à {{ salarie.nom }}.
+    {% elif salarie.solde_du < 0 %}
+    {{ salarie.nom }} a reçu <strong>{{ "{:,}".format(-salarie.solde_du).replace(",", " ") }}</strong> de plus que ce qui a été déclaré dû (avance non rattrapée).
+    {% else %}
+    Compte à jour, rien n'est dû de part ou d'autre.
+    {% endif %}
+  </p>
+</div>
+
+{# Les deux formulaires d'ajout restent groupés tout en haut, toujours
+   visibles sans défiler — les deux historiques (qui peuvent s'allonger
+   indéfiniment) viennent après, pour ne jamais les faire disparaître sous
+   une longue liste comme c'était le cas avant. #}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter items-start mb-8">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("payments", "Ajouter une rémunération") }}
+    <form method="post" action="{{ url_for('rh.ajouter_remuneration', salarie_id=salarie.id) }}">
+      {{ form.hidden_tag() }}
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.type_remuneration) }}
+        {{ field(form.montant) }}
+      </div>
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.date_versement) }}
+        {{ field(form.moyen_paiement_id, help="« Non versé » si dû mais pas encore payé.") }}
+      </div>
+      {{ field(form.observations) }}
+
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Enregistrer</button>
+    </form>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("event_busy", "Noter une absence") }}
+    <form method="post" action="{{ url_for('rh.ajouter_absence', salarie_id=salarie.id) }}">
+      {{ absence_form.hidden_tag() }}
+
+      <div class="grid grid-cols-3 gap-2 mb-4" id="absence-type-pills">
+        {% for subfield in absence_form.type_absence %}
+        <label class="h-touch-target-min rounded-xl flex items-center justify-center text-center px-2 font-label-md text-xs cursor-pointer border border-outline-variant has-[:checked]:bg-secondary-container has-[:checked]:border-secondary-container has-[:checked]:text-on-secondary-container text-on-surface-variant">
+          {{ subfield(class="sr-only") }} {{ subfield.label.text }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block font-label-md text-label-md text-on-surface mb-1">Du</label>
+          {{ absence_form.date_debut(class="w-full h-touch-target-min px-3 bg-surface border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow", id="absence-date-debut") }}
+        </div>
+        <div>
+          <label class="block font-label-md text-label-md text-on-surface mb-1">Au</label>
+          {{ absence_form.date_fin(class="w-full h-touch-target-min px-3 bg-surface border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow", id="absence-date-fin") }}
+        </div>
+      </div>
+      {% for message in absence_form.date_fin.errors %}<p class="font-body-md text-sm text-error mb-4 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>{% endfor %}
+
+      {{ field(absence_form.observations, rows="1") }}
+
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Enregistrer l'absence</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter items-start">
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    <div class="p-4 border-b border-outline-variant/20 flex items-center justify-between">
+      <h3 class="font-headline-md text-headline-md text-on-surface">Historique</h3>
+      <span class="font-label-md text-label-md text-on-surface-variant">Net cumulé : {{ "{:,}".format(total_net).replace(",", " ") }}</span>
+    </div>
+    <div class="max-h-[28rem] overflow-y-auto">
+      {% for r in salarie.remunerations %}
+      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+        <div>
+          <p class="font-body-md text-body-md text-on-surface">
+            {{ dict([("salaire_mensuel","Salaire mensuel"),("salaire_hebdomadaire","Salaire hebdomadaire"),("remuneration_journaliere","Rémunération journalière"),("avance","Avance"),("prime","Prime"),("retenue","Retenue")])[r.type_remuneration] }}
+          </p>
+          <p class="font-body-md text-xs text-on-surface-variant mt-1">
+            {{ r.date_versement.strftime('%d/%m/%Y') }}
+            {% if r.moyen_paiement %} · {{ r.moyen_paiement.name }}{% else %} · <span class="text-primary font-bold">non versé (dû)</span>{% endif %}
+            {% if r.observations %} · {{ r.observations }}{% endif %}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="font-label-md text-label-md {% if r.type_remuneration == 'retenue' %}text-error{% else %}text-on-surface{% endif %}">
+            {{ "-" if r.type_remuneration == "retenue" else "" }}{{ "{:,}".format(r.montant).replace(",", " ") }}
+          </span>
+          {% if r.type_remuneration in ("salaire_mensuel", "salaire_hebdomadaire", "remuneration_journaliere") %}
+          <a href="{{ url_for('rh.fiche_paie', salarie_id=salarie.id, remuneration_id=r.id) }}" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-variant flex-shrink-0" title="Imprimer la fiche de paie">
+            <span class="material-symbols-outlined text-[18px]">print</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune rémunération enregistrée.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    <div class="p-4 border-b border-outline-variant/20 flex items-center justify-between flex-wrap gap-3">
+      <h3 class="font-headline-md text-headline-md text-on-surface">Absences</h3>
+      <span class="font-label-md text-label-md text-on-surface-variant">{{ total_jours_absence }} jour(s) {% if filtre_debut or filtre_fin %}sur la période{% else %}au total{% endif %}</span>
+    </div>
+    <form method="get" class="p-4 border-b border-outline-variant/20 flex items-end gap-3 flex-wrap">
+      <div>
+        <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Du</label>
+        <input type="date" name="depuis" value="{{ filtre_debut }}" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+      </div>
+      <div>
+        <label class="block font-label-md text-label-md text-on-surface-variant mb-1">Au</label>
+        <input type="date" name="jusqua" value="{{ filtre_fin }}" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+      </div>
+      <button type="submit" class="h-11 px-5 rounded-full bg-primary text-on-primary font-label-md text-xs">Filtrer</button>
+      {% if filtre_debut or filtre_fin %}
+      <a href="{{ url_for('rh.fiche', salarie_id=salarie.id) }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-xs">Réinitialiser</a>
+      {% endif %}
+    </form>
+    {% set libelles_absence = dict([("maladie","Maladie"),("conge_paye","Congé payé"),("conge_sans_solde","Congé sans solde"),("injustifiee","Absence injustifiée"),("autre","Autre")]) %}
+    <div class="max-h-[28rem] overflow-y-auto">
+      {% for a in absences %}
+      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+        <div>
+          <p class="font-body-md text-body-md text-on-surface">{{ libelles_absence[a.type_absence] }}</p>
+          <p class="font-body-md text-xs text-on-surface-variant mt-1">
+            {% if a.date_debut == a.date_fin %}
+              {{ a.date_debut.strftime('%d/%m/%Y') }}
+            {% else %}
+              Du {{ a.date_debut.strftime('%d/%m/%Y') }} au {{ a.date_fin.strftime('%d/%m/%Y') }}
+            {% endif %}
+            · {{ a.nombre_jours }} jour(s)
+            {% if a.observations %} · {{ a.observations }}{% endif %}
+          </p>
+        </div>
+        <form method="post" action="{{ url_for('rh.supprimer_absence', salarie_id=salarie.id, absence_id=a.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="w-11 h-11 flex items-center justify-center text-error hover:bg-error-container rounded-full" title="Supprimer">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </form>
+      </div>
+      {% else %}
+      <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune absence enregistrée.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<script>
+  // Un jour d'absence est le cas le plus fréquent : la date de fin suit
+  // automatiquement la date de début tant que l'utilisateur ne l'a pas
+  // touchée lui-même, pour éviter une saisie à deux endroits à chaque fois.
+  (function () {
+    const debut = document.getElementById("absence-date-debut");
+    const fin = document.getElementById("absence-date-fin");
+    let finTouchee = false;
+    fin.addEventListener("input", () => { finTouchee = true; });
+    debut.addEventListener("input", () => {
+      if (!finTouchee) fin.value = debut.value;
+    });
+  })();
+</script>
+{% endblock %}

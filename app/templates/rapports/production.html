@@ -1,0 +1,53 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Rapport de production{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('rapports.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Rapports
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Rapport de production</h2>
+</header>
+
+<form method="get" class="flex flex-wrap items-end gap-4 mb-6 bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30">
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-2">Du</label>
+    <input type="date" name="debut" value="{{ date_debut.isoformat() }}" class="h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl">
+  </div>
+  <div>
+    <label class="block font-label-md text-label-md text-on-surface-variant mb-2">Au</label>
+    <input type="date" name="fin" value="{{ date_fin.isoformat() }}" class="h-touch-target-min px-4 bg-surface-container-low border border-outline-variant rounded-xl">
+  </div>
+  <button type="submit" class="h-touch-target-min px-6 bg-primary text-on-primary rounded-full font-label-md text-label-md">Filtrer</button>
+</form>
+
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Quantités produites par produit</h3>
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden mb-8">
+  {% for ligne in par_produit %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <span class="font-body-md text-body-md text-on-surface">{{ ligne.libelle }}</span>
+    <span class="font-label-md text-label-md text-on-surface">{{ ligne.quantite }}</span>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune fabrication sur cette période.</p>
+  {% endfor %}
+</div>
+
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Historique des lots</h3>
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for f in fabrications %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div>
+      <p class="font-body-md text-body-md text-on-surface">{{ f.quantite }} × {{ f.produit.name }}</p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">
+        {{ f.date_fabrication.strftime('%d/%m/%Y') }} · Responsable {{ f.responsable_nom }}
+        {% if f.numero_lot %} · Lot {{ f.numero_lot }}{% endif %}
+        {% if f.ddm_dlc %} · DDM/DLC {{ f.ddm_dlc.strftime('%d/%m/%Y') }}{% endif %}
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune fabrication sur cette période.</p>
+  {% endfor %}
+</div>
+{% endblock %}

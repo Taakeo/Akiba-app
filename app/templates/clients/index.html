@@ -1,0 +1,52 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import supprimer_bouton %}
+{% block title %}AKIBA APP - Clients{% endblock %}
+{% block shell_content %}
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Clients</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Clients enregistrés, adhérents, grossistes, agences de voyage.</p>
+  </div>
+  <a href="{{ url_for('clients.nouveau') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    <span class="material-symbols-outlined">add</span>
+    Nouveau client
+  </a>
+</header>
+
+<form method="get" class="mb-6">
+  <div class="relative max-w-sm">
+    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-on-surface-variant">
+      <span class="material-symbols-outlined">search</span>
+    </div>
+    <input type="text" name="q" value="{{ recherche }}" placeholder="Rechercher un client..."
+           class="w-full pl-12 pr-4 h-touch-target-min bg-surface-container-low border border-outline-variant rounded-full">
+  </div>
+</form>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+    <a href="{{ url_for('clients.fiche', client_id=item.id) }}" class="flex items-center gap-4 flex-1 min-w-0 hover:opacity-80">
+      <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface font-label-md text-label-md flex-shrink-0">
+        {{ item.nom[:1]|upper }}
+      </div>
+      <div class="min-w-0">
+        <p class="font-label-md text-label-md text-on-surface">{{ item.nom }}{% if item.is_archived %} <span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ dict([("enregistre","Client enregistré"),("adherent","Adhérent"),("grossiste","Grossiste"),("agence_voyage","Agence de voyage")])[item.type_client] }}
+          {% if item.solde_credit %} · <span class="text-error">Doit {{ "{:,}".format(item.solde_credit).replace(",", " ") }}</span>{% endif %}
+        </p>
+      </div>
+    </a>
+    <div class="flex items-center gap-3 flex-shrink-0">
+      {{ supprimer_bouton(url_for('clients.supprimer', client_id=item.id), item.nom) }}
+      <a href="{{ url_for('clients.fiche', client_id=item.id) }}" class="flex items-center">
+        <span class="material-symbols-outlined text-outline">chevron_right</span>
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun client.</p>
+  {% endfor %}
+</div>
+{% endblock %}

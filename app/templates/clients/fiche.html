@@ -1,0 +1,108 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - {{ client.nom }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('clients.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Clients
+</a>
+
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">{{ client.nom }}</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+      {{ dict([("enregistre","Client enregistré"),("adherent","Adhérent"),("grossiste","Grossiste"),("agence_voyage","Agence de voyage")])[client.type_client] }}
+      {% if client.telephone %} · {{ client.telephone }}{% endif %}
+      {% if client.email %} · {{ client.email }}{% endif %}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('clients.modifier', client_id=client.id) }}" class="h-touch-target-min px-5 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Modifier</a>
+    <form method="post" action="{{ url_for('clients.toggle_archive', client_id=client.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="h-touch-target-min px-5 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+        {{ "Réactiver" if client.is_archived else "Archiver" }}
+      </button>
+    </form>
+  </div>
+</header>
+
+{% if client.solde_credit %}
+<div class="bg-error-container text-on-error-container rounded-2xl p-4 mb-8 flex items-center gap-3">
+  <span class="material-symbols-outlined">credit_card</span>
+  <p class="font-body-md text-sm">Solde dû par ce client : <strong>{{ "{:,}".format(client.solde_credit).replace(",", " ") }}</strong></p>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-gutter items-start">
+  <div>
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-headline-md text-headline-md text-on-surface">Historique des achats</h3>
+      {% if ventes|selectattr("facture_id", "none")|list %}
+      <button type="submit" form="form-facturation" class="h-11 px-5 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[18px]">description</span>
+        Facturer la sélection
+      </button>
+      {% endif %}
+    </div>
+    <form id="form-facturation" method="post" action="{{ url_for('factures.depuis_client', client_id=client.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden mb-8">
+        {% for vente in ventes %}
+        <div class="flex items-center gap-3 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} hover:bg-surface-container-low">
+          {% if vente.facture_id %}
+          <span class="w-6 h-6 flex-shrink-0" title="Déjà facturée"></span>
+          {% else %}
+          <input type="checkbox" name="vente_ids" value="{{ vente.id }}" class="w-6 h-6 flex-shrink-0 rounded border-outline-variant">
+          {% endif %}
+          <a href="{{ url_for('pos.recu', vente_id=vente.id) }}" class="flex-1 flex items-center justify-between min-w-0">
+            <div class="min-w-0">
+              <p class="font-body-md text-body-md text-on-surface">
+                Ticket #{{ vente.id }}
+                {% if vente.facture_id %} <span class="text-xs text-on-surface-variant">— facture {{ vente.facture.numero }}</span>{% endif %}
+              </p>
+              <p class="font-body-md text-xs text-on-surface-variant mt-1">
+                {{ vente.created_at.strftime('%d/%m/%Y %H:%M') }}
+                {% if vente.credit_solde_restant %} · <span class="text-error">{{ "{:,}".format(vente.credit_solde_restant).replace(",", " ") }} à crédit</span>{% endif %}
+              </p>
+            </div>
+            <span class="font-label-md text-label-md text-on-surface flex-shrink-0 ml-2">{{ "{:,}".format(vente.total).replace(",", " ") }}</span>
+          </a>
+        </div>
+        {% else %}
+        <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun achat enregistré.</p>
+        {% endfor %}
+      </div>
+    </form>
+
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Paiements de crédit</h3>
+    <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+      {% for paiement in client.paiements|sort(attribute="date_paiement", reverse=True) %}
+      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+        <div>
+          <p class="font-body-md text-body-md text-on-surface">{{ paiement.moyen_paiement.name }}</p>
+          <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ paiement.date_paiement.strftime('%d/%m/%Y') }} — par {{ paiement.created_by_name }}</p>
+        </div>
+        <span class="font-label-md text-label-md text-on-surface">{{ "{:,}".format(paiement.montant).replace(",", " ") }} {{ paiement.moyen_paiement.compte_financier.devise }}</span>
+      </div>
+      {% else %}
+      <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun paiement de crédit.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if client.solde_credit %}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("payments", "Enregistrer un paiement") }}
+    <form method="post" action="{{ url_for('clients.ajouter_paiement', client_id=client.id) }}">
+      {{ form.hidden_tag() }}
+      {{ field(form.montant, help="Dans la devise du moyen choisi ci-dessous — équivalent maximum " ~ "{:,}".format(client.solde_credit).replace(",", " ") ~ " Ar (solde dû).") }}
+      {{ field(form.moyen_paiement_id) }}
+      {{ field(form.date_paiement) }}
+
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Enregistrer</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

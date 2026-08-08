@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+{% set nav_items = [
+  ("main.dashboard", "dashboard", "Tableau de bord", None),
+  ("pos.index", "point_of_sale", "Point de Vente", "point_de_vente"),
+  ("achats.index", "shopping_cart", "Achats", "achats"),
+  ("stocks.index", "inventory_2", "Stocks", "stocks"),
+  ("production.index", "factory", "Production", "production"),
+  ("rh.index", "groups", "Ressources humaines", "rh"),
+  ("clients.index", "person", "Clients", "clients"),
+  ("caisse.status", "account_balance", "Comptes", "caisse"),
+  ("rapports.index", "assessment", "Rapports", "rapports"),
+  ("admin.index", "admin_panel_settings", "Administration", "admin"),
+] %}
+<div class="flex min-h-screen">
+  <nav class="hidden md:flex flex-col h-screen w-64 p-unit gap-2 fixed left-0 top-0 z-40 overflow-y-auto bg-surface-container shadow-md print:hidden">
+    <div class="p-4 mb-4 flex items-center gap-3">
+      <img src="{{ url_for('static', filename='vendor/logo/akiba-picto.png') }}" alt="" class="w-10 h-10 object-contain flex-shrink-0">
+      <div class="min-w-0">
+        <h1 class="font-headline-md text-headline-md font-bold text-primary">AKIBA APP</h1>
+        <p class="font-label-md text-label-md text-on-surface-variant truncate">{{ current_user.full_name }} — {{ current_user.profile.name }}</p>
+      </div>
+    </div>
+    {% for endpoint, icon, label, permission in nav_items %}
+      {% if not permission or current_user.profile.has_permission(permission) %}
+      <a href="{{ url_for(endpoint) }}"
+         class="flex items-center gap-3 p-3 rounded-xl transition-all duration-200 active:scale-98 font-label-md text-label-md
+         {% if request.blueprint == endpoint.split('.')[0] %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-secondary-container/40{% endif %}">
+        <span class="material-symbols-outlined">{{ icon }}</span>
+        <span>{{ label }}</span>
+      </a>
+      {% endif %}
+    {% endfor %}
+    <form method="post" action="{{ url_for('auth.logout') }}" class="mt-auto p-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="flex items-center gap-3 text-on-surface-variant hover:bg-secondary-container/40 rounded-xl transition-all duration-200 p-3 w-full">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="font-label-md text-label-md">Déconnexion</span>
+      </button>
+    </form>
+  </nav>
+  <main class="flex-1 md:ml-64 p-gutter md:p-container-margin min-h-screen print:ml-0 print:p-0">
+    {% block shell_content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Modifier un achat{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('achats.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Achats
+</a>
+<div class="max-w-3xl flex flex-col gap-gutter">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("receipt_long", "Informations de l'achat") }}
+    <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-4">
+      Ces informations ne sont plus modifiables une fois l'achat enregistré (stock et caisse déjà mis à jour) — seul le classement comptable peut être corrigé ci-dessous.
+    </p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Type</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ "Achat de stock" if achat.type_achat == "stock" else "Dépense générale" }}</p>
+      </div>
+      {% if achat.type_achat == "stock" %}
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Article</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.produit.name }}</p>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Quantité × prix unitaire</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.quantite }} × {{ "{:,}".format(achat.prix_unitaire).replace(",", " ") }}</p>
+      </div>
+      {% endif %}
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Montant total</p>
+        <p class="font-body-md text-body-md text-on-surface font-bold">{{ "{:,}".format(achat.montant_total).replace(",", " ") }}</p>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Moyen de paiement</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.moyen_paiement.name }}</p>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Payé depuis</p>
+        <p class="font-body-md text-body-md text-on-surface flex items-center gap-1">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">{{ "point_of_sale" if achat.moyen_paiement.compte_financier.is_caisse_physique else "account_balance" }}</span>
+          {% if achat.moyen_paiement.compte_financier.is_caisse_physique %}Caisse PDV{% else %}Compte Akiba — {{ achat.moyen_paiement.compte_financier.name }}{% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Date</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.date_achat.strftime('%d/%m/%Y') }}</p>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Enregistré par</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.created_by_name }}</p>
+      </div>
+      {% if achat.documents %}
+      <div>
+        <p class="font-label-md text-label-md text-on-surface-variant mb-1">Pièces jointes</p>
+        <p class="font-body-md text-body-md text-on-surface">{{ achat.documents|length }} fichier(s)</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("edit", "Modifier le classement") }}
+  <form method="post" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+
+    {{ field(form.nom, help="Ex. « Réparation toiture atelier ».") }}
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.poste_id) }}
+      {{ field(form.projet_id) }}
+    </div>
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.categorie_id) }}
+      {{ field(form.sous_categorie_id, help="La liste se filtre selon la catégorie choisie.") }}
+    </div>
+    {{ field(form.fournisseur_id) }}
+    {{ field(form.date_achat) }}
+    {{ field(form.observations) }}
+    {{ field(form.documents, help="Ajouter d'autres pièces jointes (facture, devis, photo, bon de livraison).") }}
+
+    {{ actions("Enregistrer", url_for("achats.index")) }}
+  </form>
+  </div>
+</div>
+
+<script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>
+<script id="sous-categories-json" type="application/json">{{ sous_categories_json | tojson }}</script>
+<script src="{{ url_for('static', filename='js/cascade.js') }}"></script>
+<script>
+  initCascadeSousCategorie("poste_id", "categorie_id", "categories-json", {{ (form.categorie_id.data or 0) | tojson }});
+  initCascadeSousCategorie("categorie_id", "sous_categorie_id", "sous-categories-json", {{ (form.sous_categorie_id.data or 0) | tojson }});
+</script>
+{% endblock %}

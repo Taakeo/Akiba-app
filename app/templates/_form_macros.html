@@ -1,0 +1,88 @@
+{# Composants de formulaire partagés : cohérence visuelle sur toute l'app
+   (label + astérisque si requis / "(facultatif)" sinon, bordure rouge et
+   message d'erreur systématiques, aide contextuelle optionnelle).
+   Calé sur le patron de formulaire fourni (focus:ring-1 + border-primary,
+   chevron custom sur les select, en-têtes de section avec badge icône). #}
+
+{% macro section_header(icon, title) %}
+<div class="flex items-center gap-3 mb-6 pb-4 border-b border-surface-variant">
+  <div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
+    <span class="material-symbols-outlined">{{ icon }}</span>
+  </div>
+  <h2 class="font-headline-md text-headline-md text-on-surface">{{ title }}</h2>
+</div>
+{% endmacro %}
+
+{% macro field(f, help=None, extra_class="", rows=None) %}
+<div class="mb-5">
+  <label for="{{ f.id }}" class="block font-label-md text-label-md text-on-surface mb-1">
+    {{ f.label.text }}
+    {% if f.flags.required %}<span class="text-error">*</span>{% else %}<span class="text-on-surface-variant/60 font-normal">(facultatif)</span>{% endif %}
+  </label>
+  {% if f.type == "TextAreaField" %}
+    {{ f(class="w-full p-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow resize-y " ~ extra_class ~ (" border-error" if f.errors else " border-outline-variant"), rows=rows or "3") }}
+  {% elif f.type in ("MultipleFileField", "FileField") %}
+    {% set is_multiple = f.type == "MultipleFileField" %}
+    {% set default_text = "Choisir des fichiers..." if is_multiple else "Choisir un fichier..." %}
+    <div class="relative">
+      {{ f(class="peer sr-only", multiple=is_multiple) }}
+      <label for="{{ f.id }}" class="flex items-center gap-3 w-full px-5 h-touch-target-min rounded-2xl border-2 border-dashed border-outline-variant bg-surface-container-low hover:border-primary hover:bg-primary-container/20 peer-focus-visible:border-primary cursor-pointer transition-colors">
+        <span class="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[20px]">upload_file</span>
+        </span>
+        <span class="font-body-md text-body-md text-on-surface-variant truncate js-file-picker-text" data-default="{{ default_text }}">{{ default_text }}</span>
+      </label>
+    </div>
+    <script>
+      (function () {
+        var input = document.getElementById("{{ f.id }}");
+        var text = input.parentElement.querySelector(".js-file-picker-text");
+        input.addEventListener("change", function () {
+          if (!input.files || input.files.length === 0) {
+            text.textContent = text.dataset.default;
+          } else if (input.files.length === 1) {
+            text.textContent = input.files[0].name;
+          } else {
+            text.textContent = input.files.length + " fichiers sélectionnés";
+          }
+        });
+      })();
+    </script>
+  {% elif f.type in ("SelectField", "SelectFieldBase") %}
+    <div class="relative">
+      {{ f(class="w-full h-touch-target-min pl-4 pr-10 appearance-none bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow " ~ extra_class ~ (" border-error" if f.errors else " border-outline-variant")) }}
+      <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+    </div>
+  {% else %}
+    {{ f(class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow " ~ extra_class ~ (" border-error" if f.errors else " border-outline-variant")) }}
+  {% endif %}
+  {% if help %}<p class="font-body-md text-sm text-on-surface-variant mt-1">{{ help }}</p>{% endif %}
+  {% for message in f.errors %}<p class="font-body-md text-sm text-error mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro supprimer_bouton(action_url, nom_affiche, taille="h-11 px-4") %}
+{# Bouton de suppression définitive : toujours à côté d'Archiver, jamais à
+   la place — irréversible, donc confirmation JS systématique. Le serveur
+   bloque quand même si l'élément est référencé ailleurs (voir
+   app/models/suppression.py), ce onsubmit n'est qu'un garde-fou côté
+   utilisateur contre un clic accidentel. #}
+<form method="post" action="{{ action_url }}" onsubmit="return confirm('Supprimer {{ nom_affiche }} définitivement ? Cette action est irréversible.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="{{ taille }} rounded-full border border-error text-error font-label-md text-label-md hover:bg-error-container transition-colors">
+    Supprimer
+  </button>
+</form>
+{% endmacro %}
+
+{% macro actions(submit_label, cancel_url, cancel_label="Annuler") %}
+<div class="flex gap-3 mt-2">
+  <a href="{{ cancel_url }}" class="flex-1 h-touch-target-min flex items-center justify-center rounded-full border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+    {{ cancel_label }}
+  </a>
+  <button type="submit" class="flex-1 h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm flex items-center justify-center gap-2">
+    <span class="material-symbols-outlined text-[20px]">save</span>
+    {{ submit_label }}
+  </button>
+</div>
+{% endmacro %}

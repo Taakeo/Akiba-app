@@ -1,0 +1,105 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Sauvegardes{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="flex items-center justify-between mb-6 flex-wrap gap-4">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Sauvegardes</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+      Les {{ items|length }} sauvegardes les plus récentes sont conservées, les plus anciennes sont purgées automatiquement.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('admin.sauvegarde_nouvelle') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      <span class="material-symbols-outlined">backup</span>
+      Créer une sauvegarde maintenant
+    </button>
+  </form>
+</header>
+
+<div class="bg-error-container text-on-error-container rounded-2xl p-4 mb-8 flex items-start gap-3">
+  <span class="material-symbols-outlined">warning</span>
+  <p class="font-body-md text-sm">
+    La restauration <strong>écrase directement</strong> la base actuelle et les pièces jointes — aucune fusion.
+    Redémarrez l'application juste après une restauration.
+  </p>
+</div>
+
+<div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="material-symbols-outlined text-primary">hard_drive</span>
+    <h3 class="font-headline-md text-headline-md text-on-surface">Disque de destination</h3>
+  </div>
+  <p class="font-body-md text-sm text-on-surface-variant mb-1">
+    Dossier utilisé actuellement : <strong class="text-on-surface">{{ dossier_actuel }}</strong>
+    {% if espace_libre is not none %}
+    · {{ (espace_libre / 1024 / 1024 / 1024) | round(1) }} Go libres sur {{ (espace_total / 1024 / 1024 / 1024) | round(1) }} Go
+    {% endif %}
+  </p>
+  <p class="font-body-md text-xs text-on-surface-variant mb-4">
+    {% if destination_configuree %}
+    Dossier personnalisé configuré. Laissez le champ vide et validez pour revenir au dossier par défaut (instance/sauvegardes).
+    {% else %}
+    Dossier par défaut. Indiquez un chemin (ex. un disque dur externe branché, <code>E:\Sauvegardes Akiba</code>) pour y sauvegarder à la place.
+    {% endif %}
+  </p>
+  <form method="post" action="{{ url_for('admin.sauvegarde_destination') }}" class="flex gap-3 flex-wrap">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="text" name="dossier_destination" value="{{ destination_configuree or '' }}" placeholder="Ex. E:\Sauvegardes Akiba (vide = dossier par défaut)"
+           class="flex-1 min-w-64 h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow">
+    <button type="submit" class="h-touch-target-min px-6 rounded-full border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+      Enregistrer
+    </button>
+  </form>
+</div>
+
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Sauvegardes disponibles</h3>
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden mb-8">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div>
+      <p class="font-label-md text-label-md text-on-surface">{{ item.date_affichee }}</p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">
+        {{ (item.taille_octets / 1024 / 1024) | round(1) }} Mo
+        {% if not item.complet %} · <span class="text-error">incomplète</span>{% endif %}
+      </p>
+    </div>
+    <form method="post" action="{{ url_for('admin.sauvegarde_restaurer', nom=item.nom) }}"
+          onsubmit="return confirm('Écraser la base actuelle par la sauvegarde du {{ item.date_affichee }} ? Cette action est irréversible.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="h-11 px-4 rounded-full border border-error text-error font-label-md text-label-md" {% if not item.complet %}disabled{% endif %}>
+        Restaurer
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune sauvegarde pour le moment.</p>
+  {% endfor %}
+</div>
+
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Historique d'audit</h3>
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for entry in audit %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div>
+      <p class="font-body-md text-body-md text-on-surface">
+        {{ dict([
+          ("sauvegarde_creee", "Sauvegarde créée"),
+          ("sauvegarde_restauree", "Sauvegarde restaurée"),
+          ("utilisateur_supprime", "Utilisateur supprimé définitivement"),
+          ("utilisateurs_purges", "Utilisateurs purgés automatiquement"),
+        ]).get(entry.action, entry.action) }} — {{ entry.detail }}
+      </p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">par {{ entry.utilisateur }}</p>
+    </div>
+    <span class="font-body-md text-xs text-on-surface-variant">{{ entry.horodatage[:19].replace("T", " ") }}</span>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune opération journalisée.</p>
+  {% endfor %}
+</div>
+{% endblock %}

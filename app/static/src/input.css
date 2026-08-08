@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+/* Design tokens "Earth & Hearth" — voir Contenu/stitch_akiba_app_management_system/earth_hearth/DESIGN.md */
+@theme {
+  --color-error: #ba1a1a;
+  --color-inverse-surface: #34302b;
+  --color-on-primary-fixed: #3e0500;
+  --color-inverse-primary: #ffb4a5;
+  --color-on-surface: #1f1b17;
+  --color-primary: #9f402d;
+  --color-surface: #fff8f4;
+  --color-outline-variant: #ddc0ba;
+  --color-surface-container-low: #fbf2eb;
+  --color-on-error: #ffffff;
+  --color-on-secondary-container: #446e47;
+  --color-on-secondary-fixed: #002107;
+  --color-secondary-fixed-dim: #a4d2a4;
+  --color-secondary-container: #bfefbe;
+  --color-tertiary: #5e604d;
+  --color-on-error-container: #93000a;
+  --color-surface-container-lowest: #ffffff;
+  --color-outline: #89726d;
+  --color-on-tertiary-container: #2b2d1c;
+  --color-tertiary-container: #93947e;
+  --color-on-secondary: #ffffff;
+  --color-surface-container: #f5ece5;
+  --color-on-tertiary-fixed-variant: #474836;
+  --color-on-primary: #ffffff;
+  --color-primary-fixed-dim: #ffb4a5;
+  --color-on-tertiary-fixed: #1b1d0e;
+  --color-background: #fff8f4;
+  --color-tertiary-fixed-dim: #c8c8b0;
+  --color-on-secondary-fixed-variant: #274f2c;
+  --color-surface-container-highest: #eae1da;
+  --color-secondary-fixed: #bfefbe;
+  --color-surface-variant: #eae1da;
+  --color-surface-dim: #e1d8d2;
+  --color-on-tertiary: #ffffff;
+  --color-primary-container: #e2725b;
+  --color-primary-fixed: #ffdad3;
+  --color-tertiary-fixed: #e4e4cc;
+  --color-on-primary-container: #5a0d02;
+  --color-surface-bright: #fff8f4;
+  --color-inverse-on-surface: #f8efe8;
+  --color-error-container: #ffdad6;
+  --color-surface-tint: #9f402d;
+  --color-on-primary-fixed-variant: #802918;
+  --color-on-background: #1f1b17;
+  --color-secondary: #3e6842;
+  --color-surface-container-high: #f0e7df;
+  --color-on-surface-variant: #56423e;
+
+  --radius: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  --spacing-unit: 8px;
+  --spacing-container-margin: 24px;
+  --spacing-gutter: 16px;
+  --spacing-touch-target-min: 48px;
+
+  --font-label-md: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-headline-lg: "Quicksand", system-ui, sans-serif;
+  --font-headline-md: "Quicksand", system-ui, sans-serif;
+  --font-headline-lg-mobile: "Quicksand", system-ui, sans-serif;
+  --font-body-lg: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display-lg: "Quicksand", system-ui, sans-serif;
+  --font-body-md: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-label-md--letter-spacing: 0.01em;
+  --text-label-md--font-weight: 600;
+
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--font-weight: 600;
+
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-lg-mobile: 28px;
+  --text-headline-lg-mobile--line-height: 36px;
+  --text-headline-lg-mobile--font-weight: 600;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-lg--font-weight: 400;
+
+  --text-display-lg: 40px;
+  --text-display-lg--line-height: 48px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 700;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--font-weight: 400;
+}
+
+@layer base {
+  @font-face {
+    font-family: "Quicksand";
+    src: url("../vendor/fonts/Quicksand-SemiBold.woff2") format("woff2");
+    font-weight: 600;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Quicksand";
+    src: url("../vendor/fonts/Quicksand-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Plus Jakarta Sans";
+    src: url("../vendor/fonts/PlusJakartaSans-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Plus Jakarta Sans";
+    src: url("../vendor/fonts/PlusJakartaSans-SemiBold.woff2") format("woff2");
+    font-weight: 600;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Material Symbols Outlined";
+    src: url("../vendor/fonts/MaterialSymbolsOutlined.woff2") format("woff2");
+    font-weight: 100 700;
+    font-display: block;
+  }
+}
+
+@layer components {
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
+  .ambient-shadow {
+    box-shadow:
+      0 12px 24px -4px rgba(74, 69, 64, 0.08),
+      0 4px 8px -2px rgba(74, 69, 64, 0.04);
+  }
+  .ambient-shadow-pressed {
+    box-shadow:
+      0 4px 8px -2px rgba(74, 69, 64, 0.08),
+      0 2px 4px -1px rgba(74, 69, 64, 0.04);
+  }
+}
+
+/* Documents imprimables depuis le navigateur (window.print()) — fiche de
+   paie RH, etc. Feuille A4 calée sur une seule page recto : le contenu
+   utilise les classes Tailwind habituelles (dont print:hidden pour masquer
+   nav/boutons à l'impression), seule la géométrie de page ne peut pas
+   s'exprimer en utilitaire Tailwind. */
+.feuille-imprimable {
+  background: var(--color-surface);
+  max-width: 210mm;
+  margin: 0 auto;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  .feuille-imprimable {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

@@ -1,0 +1,85 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header, supprimer_bouton %}
+{% block title %}AKIBA APP - Comptes financiers{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Comptes financiers</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+    Caisse, mobile money, banque... Créez, modifiez ou supprimez un compte, et corrigez son solde réel (tracé avec un
+    motif). « Tiroir-caisse physique » et « Compte Akiba » sont des rôles uniques : un seul compte à la fois pour
+    chacun (§2 spec — mono-poste).
+  </p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-gutter items-start">
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% for c in comptes %}
+    <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if c.is_archived %}opacity-50{% endif %}">
+      <div>
+        <p class="font-label-md text-label-md text-on-surface">
+          {{ c.name }}
+          {% if c.is_caisse_physique %}<span class="text-xs text-primary">(tiroir PDV)</span>{% endif %}
+          {% if c.is_compte_akiba %}<span class="text-xs text-primary">(Compte Akiba)</span>{% endif %}
+          {% if not c.visible_tableau_bord %}<span class="text-xs text-on-surface-variant">(masqué du tableau de bord)</span>{% endif %}
+          {% if c.is_archived %}<span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}
+        </p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ "{:,}".format(c.solde).replace(",", " ") }} {{ c.devise }}</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="{{ url_for('admin.compte_financier_modifier', compte_id=c.id) }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md {% if compte and compte.id == c.id %}bg-secondary-container text-on-secondary-container border-transparent{% endif %}">
+          Modifier
+        </a>
+        <a href="{{ url_for('admin.compte_financier_ajuster', compte_id=c.id) }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+          Ajuster le solde
+        </a>
+        <form method="post" action="{{ url_for('admin.compte_financier_toggle_archive', compte_id=c.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+            {{ "Réactiver" if c.is_archived else "Archiver" }}
+          </button>
+        </form>
+        {{ supprimer_bouton(url_for('admin.compte_financier_supprimer', compte_id=c.id), c.name) }}
+      </div>
+    </div>
+    {% else %}
+    <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun compte financier.</p>
+    {% endfor %}
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {% if compte %}
+    {{ section_header("edit", "Modifier « " + compte.name + " »") }}
+    <form method="post" action="{{ url_for('admin.compte_financier_modifier', compte_id=compte.id) }}">
+    {% else %}
+    {{ section_header("account_balance", "Nouveau compte") }}
+    <form method="post" action="{{ url_for('admin.comptes_financiers') }}">
+    {% endif %}
+      {{ form.hidden_tag() }}
+      {{ field(form.name) }}
+      {{ field(form.devise) }}
+      <label class="flex items-center gap-2 mb-4 font-body-md text-sm text-on-surface">
+        {{ form.is_caisse_physique }} {{ form.is_caisse_physique.label.text }}
+      </label>
+      <label class="flex items-center gap-2 mb-4 font-body-md text-sm text-on-surface">
+        {{ form.is_compte_akiba }} {{ form.is_compte_akiba.label.text }}
+      </label>
+      <label class="flex items-center gap-2 mb-4 font-body-md text-sm text-on-surface">
+        {{ form.visible_tableau_bord }} {{ form.visible_tableau_bord.label.text }}
+      </label>
+
+      <div class="flex gap-2">
+        {% if compte %}
+        <a href="{{ url_for('admin.comptes_financiers') }}" class="flex-1 h-touch-target-min flex items-center justify-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Annuler</a>
+        <button type="submit" class="flex-1 h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Enregistrer</button>
+        {% else %}
+        <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

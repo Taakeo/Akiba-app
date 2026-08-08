@@ -1,0 +1,31 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Inventaires{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('stocks.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Stocks
+</a>
+<header class="flex items-center justify-between mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Inventaires</h2>
+  <a href="{{ url_for('stocks.inventaire_nouveau') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    <span class="material-symbols-outlined">add</span>
+    Nouvel inventaire
+  </a>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <a href="{{ url_for('stocks.inventaire_detail', inventaire_id=item.id) }}" class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} hover:bg-surface-container-low">
+    <div>
+      <p class="font-label-md text-label-md text-on-surface">Inventaire #{{ item.id }} — {{ item.type_inventaire }}{% if item.categorie %} ({{ item.categorie.name }}){% endif %}</p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.created_at.strftime('%d/%m/%Y %H:%M') }} — par {{ item.created_by_name }}</p>
+    </div>
+    <span class="px-3 py-1 rounded-full font-label-md text-xs {% if item.statut == 'ouvert' %}bg-primary-container text-on-primary-container{% else %}bg-surface-container-highest text-on-surface{% endif %}">
+      {{ "En cours" if item.statut == "ouvert" else "Clôturé" }}
+    </span>
+  </a>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun inventaire.</p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Comptes{% endblock %}
+{% block shell_content %}
+<header class="mb-8">
+  <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Comptes — coffre-fort Akiba</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-2">Solde réel de tous les comptes financiers d'Akiba (toutes sessions, tous postes confondus) — mis à jour à chaque vente, achat ou mouvement, quel que soit le moyen de paiement. Pour le résumé de la session en cours du Point de Vente, voir <a href="{{ url_for('caisse.pdv') }}" class="text-primary underline">Point de Vente > Caisse</a>.</p>
+</header>
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter mb-8">
+  {% for compte in comptes %}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface-variant mb-1">{{ compte.name }}</p>
+    <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(compte.solde).replace(",", " ") }} {{ compte.devise }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30 flex items-center justify-between flex-wrap gap-3">
+  <div class="flex items-center gap-3">
+    <span class="material-symbols-outlined text-on-surface-variant">currency_exchange</span>
+    <p class="font-body-md text-sm text-on-surface-variant">
+      Taux de change : <strong class="text-on-surface">1 € = {{ "{:,}".format(taux.ariary_pour_un_euro).replace(",", " ") }} Ar</strong>
+      — sert à calculer un paiement en euros au PDV, les prix restent en ariary.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('caisse.taux_change') }}" class="flex items-center gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <span class="font-body-md text-sm text-on-surface-variant">1 € =</span>
+    {{ taux_form.ariary_pour_un_euro(class="w-28 h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm text-right") }}
+    <span class="font-body-md text-sm text-on-surface-variant">Ar</span>
+    <button type="submit" class="h-11 px-4 rounded-full border border-outline text-on-surface font-label-md text-xs hover:bg-surface-container transition-colors">Modifier</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Régénérer le PIN{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.utilisateurs') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Utilisateurs
+</a>
+<div class="max-w-md bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Régénérer le PIN de {{ sub_profile.full_name }}</h3>
+  <p class="font-body-md text-body-md text-on-surface-variant mb-6">
+    Un nouveau code à 4 chiffres sera généré aléatoirement et affiché une seule fois.
+    L'ancien code cessera immédiatement de fonctionner.
+  </p>
+  <form method="post" action="{{ url_for('admin.utilisateur_regenerer_pin', sub_profile_id=sub_profile.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      Générer un nouveau PIN
+    </button>
+  </form>
+</div>
+{% endblock %}

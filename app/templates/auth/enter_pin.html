@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}AKIBA APP - Code PIN{% endblock %}
+{% block content %}
+<main class="w-full max-w-sm min-h-screen mx-auto flex flex-col justify-center p-gutter md:p-container-margin">
+  <a href="{{ url_for('auth.select_user', profile_id=profile.id) }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+    <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+    Changer d'utilisateur
+  </a>
+
+  <header class="text-center mb-8">
+    <div class="w-16 h-16 mx-auto rounded-full bg-surface-container-high flex items-center justify-center text-on-surface font-headline-md text-headline-md mb-4">
+      {{ sub_profile.full_name[:1]|upper }}
+    </div>
+    <h1 class="font-headline-lg text-headline-lg text-on-surface">{{ sub_profile.full_name }}</h1>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Saisissez votre code PIN (4 chiffres) — au clavier ou à l'écran.</p>
+  </header>
+
+  {% if error %}
+  <p class="text-center font-label-md text-label-md text-error mb-4">{{ error }}</p>
+  {% endif %}
+  {% for field_errors in form.errors.values() %}
+    {% for message in field_errors %}
+    <p class="text-center font-label-md text-label-md text-error mb-4">{{ message }}</p>
+    {% endfor %}
+  {% endfor %}
+
+  <form method="post" id="pin-form">
+    {{ form.hidden_tag() }}
+    <div class="flex justify-center gap-3 mb-8" id="pin-dots">
+      {% for _ in range(4) %}
+      <span class="pin-dot w-4 h-4 rounded-full border-2 border-outline-variant transition-colors"></span>
+      {% endfor %}
+    </div>
+    {# Champ réel, gardé focusable (pas sr-only) pour que la saisie clavier
+       fonctionne nativement : positionné hors écran plutôt que masqué. #}
+    {{ form.pin(id="pin-input", autocomplete="off", inputmode="numeric", pattern="[0-9]*", maxlength="4", autofocus=true, class="absolute opacity-0 pointer-events-none w-px h-px") }}
+
+    <div class="grid grid-cols-3 gap-4">
+      {% for digit in ["1","2","3","4","5","6","7","8","9"] %}
+      <button type="button" data-digit="{{ digit }}" class="pin-key h-20 rounded-2xl bg-surface-container-lowest ambient-shadow font-headline-lg text-headline-lg text-on-surface active:ambient-shadow-pressed active:bg-surface-container active:scale-95 transition-transform">{{ digit }}</button>
+      {% endfor %}
+      <button type="button" id="pin-clear" class="h-20 rounded-2xl bg-surface-container font-label-md text-label-md text-on-surface-variant active:scale-95 transition-transform">Effacer</button>
+      <button type="button" data-digit="0" class="pin-key h-20 rounded-2xl bg-surface-container-lowest ambient-shadow font-headline-lg text-headline-lg text-on-surface active:ambient-shadow-pressed active:bg-surface-container active:scale-95 transition-transform">0</button>
+      <button type="submit" id="pin-submit" class="h-20 rounded-2xl bg-primary text-on-primary flex items-center justify-center active:scale-95 transition-transform">
+        <span class="material-symbols-outlined text-3xl">check</span>
+      </button>
+    </div>
+  </form>
+</main>
+<script>
+  const PIN_LENGTH = 4;
+  const input = document.getElementById("pin-input");
+  const dots = Array.from(document.querySelectorAll(".pin-dot"));
+  const form = document.getElementById("pin-form");
+
+  function render() {
+    dots.forEach((dot, i) => {
+      dot.classList.toggle("bg-primary", i < input.value.length);
+      dot.classList.toggle("border-primary", i < input.value.length);
+    });
+    // Soumission automatique dès le 4e chiffre — clavier ou pavé tactile.
+    if (input.value.length === PIN_LENGTH) {
+      setTimeout(() => form.submit(), 120);
+    }
+  }
+
+  // Pavé tactile : ajoute un chiffre au champ réel puis redéclenche le rendu.
+  document.querySelectorAll(".pin-key").forEach((key) => {
+    key.addEventListener("click", () => {
+      if (input.value.length < PIN_LENGTH) {
+        input.value += key.dataset.digit;
+        render();
+      }
+    });
+  });
+
+  document.getElementById("pin-clear").addEventListener("click", () => {
+    input.value = "";
+    render();
+  });
+
+  // Clavier physique : filtre les caractères non numériques et limite à 4
+  // chiffres, quelle que soit la façon dont l'utilisateur les a tapés.
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/\D/g, "").slice(0, PIN_LENGTH);
+    render();
+  });
+
+  input.focus();
+  render();
+</script>
+{% endblock %}

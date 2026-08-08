@@ -1,0 +1,56 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header, supprimer_bouton %}
+{% block title %}AKIBA APP - Fournisseurs{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Fournisseurs</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Coordonnées, historique d'achats consultable depuis chaque achat.</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-gutter items-start">
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    {% for item in items %}
+    <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+      <div>
+        <p class="font-label-md text-label-md text-on-surface">{{ item.name }}{% if item.is_archived %} <span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.telephone or "" }}{% if item.telephone and item.email %} · {% endif %}{{ item.email or "" }}</p>
+        {% if item.observations %}
+        <p class="font-body-md text-xs text-on-surface-variant/80 mt-1 italic">{{ item.observations }}</p>
+        {% endif %}
+      </div>
+      <div class="flex gap-2">
+        <form method="post" action="{{ url_for('admin.fournisseur_toggle_archive', fournisseur_id=item.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+            {{ "Réactiver" if item.is_archived else "Archiver" }}
+          </button>
+        </form>
+        {{ supprimer_bouton(url_for('admin.fournisseur_supprimer', fournisseur_id=item.id), item.name) }}
+      </div>
+    </div>
+    {% else %}
+    <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun fournisseur.</p>
+    {% endfor %}
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("local_shipping", "Nouveau fournisseur") }}
+    <form method="post">
+      {{ form.hidden_tag() }}
+      {{ field(form.name) }}
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.telephone) }}
+        {{ field(form.email) }}
+      </div>
+      {{ field(form.adresse) }}
+      {{ field(form.observations, help="Ex. conditions de paiement, contact habituel...") }}
+
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

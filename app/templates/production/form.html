@@ -1,0 +1,33 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Nouvelle fabrication{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('production.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Production
+</a>
+<div class="max-w-3xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("factory", "Déclarer une fabrication") }}
+  <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-2">La validation ajoute automatiquement la quantité au stock du produit fabriqué.</p>
+  <p class="font-body-md text-sm text-on-surface-variant mb-6 flex items-center gap-2">
+    <span class="material-symbols-outlined text-[18px]">badge</span>
+    Déclaré par <strong class="text-on-surface">{{ current_user.full_name }}</strong>
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.produit_id) }}
+      {{ field(form.quantite) }}
+    </div>
+    {{ field(form.date_fabrication) }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.numero_lot, help="Pour retrouver rapidement ce lot en cas de problème qualité.") }}
+      {{ field(form.ddm_dlc, help="Date de durabilité minimale ou limite de consommation.") }}
+    </div>
+    {{ field(form.observations, help="Toute précision utile sur cette fabrication.") }}
+
+    {{ actions("Enregistrer", url_for("production.index")) }}
+  </form>
+</div>
+{% endblock %}

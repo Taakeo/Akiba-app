@@ -1,0 +1,53 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import supprimer_bouton %}
+{% block title %}AKIBA APP - Ressources humaines{% endblock %}
+{% block shell_content %}
+<header class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Ressources humaines</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Salariés, salaires, avances, primes, retenues.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('rh.import_salaries') }}" class="h-touch-target-min px-6 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined">upload_file</span>
+      Importer depuis Excel
+    </a>
+    <a href="{{ url_for('rh.nouveau') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      <span class="material-symbols-outlined">add</span>
+      Nouveau salarié
+    </a>
+  </div>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+    <a href="{{ url_for('rh.fiche', salarie_id=item.id) }}" class="flex items-center gap-4 flex-1 min-w-0 hover:opacity-80">
+      <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface font-label-md text-label-md flex-shrink-0">
+        {{ item.nom[:1]|upper }}
+      </div>
+      <div class="min-w-0">
+        <p class="font-label-md text-label-md text-on-surface">{{ item.nom }}{% if item.is_archived %} <span class="text-xs text-on-surface-variant">(archivé)</span>{% endif %}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ item.fonction or "—" }}{% if item.type_contrat %} · {{ item.type_contrat }}{% endif %}
+          {% if item.poste %} · {{ item.poste.name }}{% endif %}
+        </p>
+      </div>
+    </a>
+    <div class="flex items-center gap-3 flex-shrink-0">
+      {% if item.solde_du > 0 %}
+      <span class="font-label-md text-label-md text-primary">Dû : {{ "{:,}".format(item.solde_du).replace(",", " ") }}</span>
+      {% elif item.solde_du < 0 %}
+      <span class="font-label-md text-label-md text-error">Avance : {{ "{:,}".format(-item.solde_du).replace(",", " ") }}</span>
+      {% endif %}
+      {{ supprimer_bouton(url_for('rh.supprimer', salarie_id=item.id), item.nom) }}
+      <a href="{{ url_for('rh.fiche', salarie_id=item.id) }}" class="flex items-center">
+        <span class="material-symbols-outlined text-outline">chevron_right</span>
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun salarié enregistré.</p>
+  {% endfor %}
+</div>
+{% endblock %}

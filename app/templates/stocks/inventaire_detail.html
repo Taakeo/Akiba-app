@@ -1,0 +1,53 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Inventaire #{{ inventaire.id }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('stocks.inventaires') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Inventaires
+</a>
+<header class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Inventaire #{{ inventaire.id }}</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+      {{ inventaire.type_inventaire }}{% if inventaire.categorie %} — {{ inventaire.categorie.name }}{% endif %}
+      · créé par {{ inventaire.created_by_name }}
+    </p>
+  </div>
+  <span class="px-3 py-1 rounded-full font-label-md text-xs {% if inventaire.statut == 'ouvert' %}bg-primary-container text-on-primary-container{% else %}bg-surface-container-highest text-on-surface{% endif %}">
+    {{ "En cours" if inventaire.statut == "ouvert" else "Clôturé le " + inventaire.cloture_le.strftime('%d/%m/%Y %H:%M') }}
+  </span>
+</header>
+
+<form method="post">
+  {% if inventaire.statut == "ouvert" %}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% endif %}
+  <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+    <div class="grid grid-cols-4 gap-4 p-4 border-b border-outline-variant/20 font-label-md text-label-md text-on-surface-variant">
+      <span class="col-span-2">Produit</span>
+      <span class="text-right">Théorique</span>
+      <span class="text-right">Réel</span>
+    </div>
+    {% for ligne in inventaire.lignes %}
+    <div class="grid grid-cols-4 gap-4 p-4 items-center {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+      <span class="col-span-2 font-body-md text-body-md text-on-surface">{{ ligne.produit.name }}</span>
+      <span class="text-right font-body-md text-body-md text-on-surface-variant">{{ ligne.stock_theorique }}</span>
+      {% if inventaire.statut == "ouvert" %}
+      <input type="number" name="reel_{{ ligne.id }}" value="{{ ligne.stock_reel if ligne.stock_reel is not none else '' }}"
+             class="h-touch-target-min px-3 bg-surface-container-low border border-outline-variant rounded-xl text-right">
+      {% else %}
+      <span class="text-right font-label-md text-label-md {% if ligne.ecart %}text-error font-bold{% else %}text-on-surface{% endif %}">
+        {{ ligne.stock_reel }}{% if ligne.ecart %} ({{ "%+d"|format(ligne.ecart) }}){% endif %}
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if inventaire.statut == "ouvert" %}
+  <button type="submit" class="w-full max-w-md h-touch-target-min mt-6 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    Clôturer l'inventaire et appliquer les écarts
+  </button>
+  {% endif %}
+</form>
+{% endblock %}

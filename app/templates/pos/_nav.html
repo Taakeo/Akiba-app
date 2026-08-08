@@ -1,0 +1,30 @@
+{# Mini-menu du poste PDV : dashboard / vente / caisse / comptes.
+   Utilisé par pos/index.html et par tout ce qui relève de la caisse du
+   PDV (ouverture, fermeture, entrée-sortie) pour rester dans la même
+   interface plutôt que de basculer sur le grand menu de l'app. #}
+{% macro pdv_nav(active) %}
+<nav class="flex flex-col h-full p-unit gap-2 fixed left-0 top-0 z-40 overflow-y-auto bg-surface-container shadow-md w-20">
+  <div class="h-14 mb-2 flex items-center justify-center">
+    <div class="w-11 h-11 rounded-full bg-primary-container flex items-center justify-center p-2">
+      <img src="{{ url_for('static', filename='vendor/logo/akiba-picto.png') }}" alt="AKIBA" class="w-full h-full object-contain">
+    </div>
+  </div>
+  <a href="{{ url_for('main.dashboard') }}" title="Tableau de bord" class="flex items-center justify-center h-14 rounded-xl {% if active == 'dashboard' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-secondary-container/40{% endif %}">
+    <span class="material-symbols-outlined text-2xl">dashboard</span>
+  </a>
+  <a href="{{ url_for('pos.index') }}" title="Point de Vente" class="flex items-center justify-center h-14 rounded-xl {% if active == 'pos' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-secondary-container/40{% endif %}">
+    <span class="material-symbols-outlined text-2xl">point_of_sale</span>
+  </a>
+  {# Icônes affichées seulement si le droit "caisse" est réellement présent
+     — sinon un profil personnalisé avec point_de_vente mais sans caisse se
+     retrouvait avec des icônes menant systématiquement à un 403. #}
+  {% if current_user.profile.has_permission("caisse") %}
+  <a href="{{ url_for('caisse.pdv') }}" title="Caisse (ouverture, clôture, entrée/sortie)" class="flex items-center justify-center h-14 rounded-xl {% if active == 'caisse' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-secondary-container/40{% endif %}">
+    <span class="material-symbols-outlined text-2xl">lock</span>
+  </a>
+  <a href="{{ url_for('caisse.status') }}" title="Comptes (vue Akiba globale)" class="flex items-center justify-center h-14 rounded-xl {% if active == 'comptes' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-secondary-container/40{% endif %}">
+    <span class="material-symbols-outlined text-2xl">account_balance</span>
+  </a>
+  {% endif %}
+</nav>
+{% endmacro %}

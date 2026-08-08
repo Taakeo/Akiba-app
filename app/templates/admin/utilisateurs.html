@@ -1,0 +1,56 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import supprimer_bouton %}
+{% block title %}AKIBA APP - Utilisateurs{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Utilisateurs</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Sous-profils rattachés à un profil, chacun avec son code PIN.</p>
+  </div>
+  <a href="{{ url_for('admin.utilisateur_nouveau') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    <span class="material-symbols-outlined">add</span>
+    Nouvel utilisateur
+  </a>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if not item.is_active %}opacity-50{% endif %}">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface font-label-md text-label-md">
+        {{ item.full_name[:1]|upper }}
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface">{{ item.full_name }}</p>
+        <p class="font-body-md text-xs text-on-surface-variant">
+          {{ item.profile.name }}{% if not item.is_active %} · suspendu{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('admin.utilisateur_reset_pin', sub_profile_id=item.id) }}" class="h-11 px-4 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+        Changer le PIN
+      </a>
+      {% if item.is_active %}
+      <form method="post" action="{{ url_for('admin.utilisateur_suspendre', sub_profile_id=item.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-error font-label-md text-label-md">Suspendre</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('admin.utilisateur_reactiver', sub_profile_id=item.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">Réactiver</button>
+      </form>
+      {{ supprimer_bouton(url_for('admin.utilisateur_supprimer', sub_profile_id=item.id), item.full_name) }}
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun utilisateur.</p>
+  {% endfor %}
+</div>
+{% endblock %}

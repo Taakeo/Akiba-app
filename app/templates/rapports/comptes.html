@@ -1,0 +1,22 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Rapport des comptes{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('rapports.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Rapports
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Comptes financiers</h2>
+</header>
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+  {% for compte in items %}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface-variant mb-1">{{ compte.name }}</p>
+    <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(compte.solde).replace(",", " ") }} {{ compte.devise }}</p>
+  </div>
+  {% else %}
+  <p class="font-body-md text-body-md text-on-surface-variant">Aucun compte configuré.</p>
+  {% endfor %}
+</div>
+{% endblock %}

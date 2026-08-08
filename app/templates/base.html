@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr" class="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}AKIBA APP{% endblock %}</title>
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='vendor/logo/akiba.ico') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/output.css') }}">
+</head>
+<body class="relative bg-background text-on-background min-h-screen font-body-md text-body-md selection:bg-primary-container selection:text-on-primary-container">
+{# Filigrane du logo Akiba en fond, sur toutes les pages (retour utilisateur
+   explicite) — non cliquable, très faible opacité pour ne jamais gêner la
+   lecture, masqué à l'impression (le ticket/la facture ont déjà leur propre
+   logo net en en-tête, pas besoin d'un filigrane derrière).
+   `fixed` (pas `absolute`) : reste centré sur l'écran affiché en permanence,
+   quelle que soit la position de défilement — un `absolute` centré sur la
+   page entière ne se voyait qu'en scrollant jusqu'au milieu d'une page plus
+   haute que le viewport (retour utilisateur du 08/08/2026 : "je trouve ça
+   nul", préférence explicitement inversée par rapport au choix précédent). #}
+<div class="fixed inset-0 flex items-center justify-center pointer-events-none opacity-5 print:hidden select-none" aria-hidden="true">
+  <img src="{{ url_for('static', filename='vendor/logo/akiba-picto.png') }}" class="w-[55vmin] h-[55vmin] object-contain" alt="">
+</div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {# pointer-events-none sur le conteneur : ce bandeau flotte sur toute la
+     largeur de l'écran (inset-x-0) même si le message est étroit et centré,
+     et sans ça il interceptait les clics partout sur cette bande — y compris
+     le bouton retour, présent en haut de quasiment toutes les pages, juste
+     en dessous. Seul le message lui-même (pointer-events-auto) doit rester
+     cliquable. #}
+  <div class="fixed top-gutter inset-x-0 z-50 flex flex-col items-center gap-2 px-gutter pointer-events-none">
+    {% for category, message in messages %}
+    <div class="w-full max-w-md rounded-lg px-4 py-3 text-body-md font-body-md shadow-lg pointer-events-auto
+      {% if category == 'error' %}bg-error-container text-on-error-container
+      {% else %}bg-secondary-container text-on-secondary-container{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% block content %}{% endblock %}
+
+{% if current_user.is_authenticated %}
+<form id="auto-logout-form" method="post" action="{{ url_for('auth.logout') }}" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<script>
+  window.AKIBA_INACTIVITY_TIMEOUT_MS = {{ (config.INACTIVITY_TIMEOUT_MINUTES * 60000) | int }};
+</script>
+<script src="{{ url_for('static', filename='js/inactivity.js') }}"></script>
+{% endif %}
+</body>
+</html>

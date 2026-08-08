@@ -1,0 +1,29 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Rapports{% endblock %}
+{% block shell_content %}
+<header class="mb-8">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Rapports</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Consultables à l'écran, filtrables par date, exportables.</p>
+</header>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+  {% for endpoint, icon, title, description in [
+    ("rapports.ventes", "point_of_sale", "Ventes", "Par produit, catégorie, poste, projet, vendeur"),
+    ("rapports.achats", "shopping_cart", "Achats", "Par fournisseur, catégorie, poste, projet"),
+    ("rapports.stocks", "inventory_2", "Stocks", "État actuel, mouvements de la période"),
+    ("rapports.production", "factory", "Production", "Quantités produites, historique des lots"),
+    ("rapports.rh", "groups", "Ressources humaines", "Coût par salarié, par projet"),
+    ("rapports.comptes", "account_balance", "Comptes", "Solde de chaque compte financier"),
+  ] %}
+  <a href="{{ url_for(endpoint) }}" class="flex flex-col gap-3 bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 hover:-translate-y-1 transition-all">
+    <div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+      <span class="material-symbols-outlined">{{ icon }}</span>
+    </div>
+    <div>
+      <h3 class="font-headline-md text-headline-md text-on-surface">{{ title }}</h3>
+      <p class="font-body-md text-sm text-on-surface-variant">{{ description }}</p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

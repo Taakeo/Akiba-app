@@ -1,0 +1,91 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header, supprimer_bouton %}
+{% block title %}AKIBA APP - Catégories{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Catégories</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Menu affiché au Point de Vente, avec sous-catégories facultatives.</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-gutter items-start">
+  <div class="flex flex-col gap-gutter">
+    {% for poste_name, groupe in items|groupby('poste.name') %}
+    <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+      <h3 class="font-title-sm text-title-sm text-on-surface px-4 pt-4 pb-2">{{ poste_name }}</h3>
+      {% for item in groupe %}
+      <div class="p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_archived %}opacity-50{% endif %}">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-on-surface-variant">{{ item.icon }}</span>
+            <span class="font-label-md text-label-md text-on-surface">{{ item.name }}</span>
+            {% if item.is_archived %}<span class="font-label-md text-xs text-on-surface-variant">(archivé)</span>{% endif %}
+          </div>
+          <div class="flex gap-2">
+            <form method="post" action="{{ url_for('admin.categorie_toggle_archive', categorie_id=item.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+                {{ "Réactiver" if item.is_archived else "Archiver" }}
+              </button>
+            </form>
+            {{ supprimer_bouton(url_for('admin.categorie_supprimer', categorie_id=item.id), item.name) }}
+          </div>
+        </div>
+        {% if item.sous_categories %}
+        <ul class="mt-3 ml-9 flex flex-col gap-2">
+          {% for sc in item.sous_categories %}
+          <li class="flex items-center justify-between {% if sc.is_archived %}opacity-50{% endif %}">
+            <span class="font-body-md text-sm text-on-surface-variant">— {{ sc.name }}{% if sc.is_archived %} (archivée){% endif %}</span>
+            <div class="flex gap-1">
+              <form method="post" action="{{ url_for('admin.sous_categorie_toggle_archive', sous_categorie_id=sc.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="h-9 px-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-xs">
+                  {{ "Réactiver" if sc.is_archived else "Archiver" }}
+                </button>
+              </form>
+              {{ supprimer_bouton(url_for('admin.sous_categorie_supprimer', sous_categorie_id=sc.id), sc.name, taille="h-9 px-3") }}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune catégorie.</p>
+    {% endfor %}
+  </div>
+
+  <div class="flex flex-col gap-gutter">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      {{ section_header("category", "Nouvelle catégorie") }}
+      <form method="post" action="{{ url_for('admin.categories') }}">
+        {{ form.hidden_tag() }}
+        {{ field(form.poste_id) }}
+        {{ field(form.name, help="Ex. Vanille, Chocolat, Salaires_boutique...") }}
+        <div class="grid grid-cols-2 gap-x-4">
+          {{ field(form.icon, help="Nom d'icône Material Symbols. Vide = icône par défaut.") }}
+          {{ field(form.ordre, help="Ordre d'apparition au PDV.") }}
+        </div>
+
+        <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer</button>
+      </form>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+      {{ section_header("subdirectory_arrow_right", "Nouvelle sous-catégorie") }}
+      <form method="post" action="{{ url_for('admin.sous_categories_create') }}">
+        {{ sous_form.hidden_tag() }}
+        {{ field(sous_form.categorie_id) }}
+        {{ field(sous_form.name) }}
+
+        <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

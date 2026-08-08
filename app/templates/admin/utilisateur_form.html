@@ -1,0 +1,27 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - Nouvel utilisateur{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.utilisateurs') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Utilisateurs
+</a>
+<div class="max-w-2xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {{ section_header("person_add", "Nouvel utilisateur") }}
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.full_name) }}
+      {{ field(form.profile_id, help="Détermine les droits d'accès : Vendeur (PDV/caisse), Responsable (accès étendu), etc.") }}
+    </div>
+
+    <p class="font-body-md text-sm text-on-surface-variant mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">info</span>
+      Le code PIN à 4 chiffres est généré automatiquement et affiché une seule fois après la création.
+    </p>
+
+    <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm">Créer et générer le PIN</button>
+  </form>
+</div>
+{% endblock %}

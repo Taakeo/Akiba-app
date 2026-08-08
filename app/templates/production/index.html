@@ -1,0 +1,42 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Production{% endblock %}
+{% block shell_content %}
+<header class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Production</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-1">Fabrications déclarées (chocolat, café, huiles, épices...).</p>
+  </div>
+  <a href="{{ url_for('production.nouvelle') }}" class="h-touch-target-min px-6 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+    <span class="material-symbols-outlined">add</span>
+    Nouvelle fabrication
+  </a>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for item in items %}
+  <div class="flex items-center justify-between gap-3 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+    <div class="flex items-center gap-4 min-w-0">
+      <div class="w-11 h-11 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined">factory</span>
+      </div>
+      <div class="min-w-0">
+        <p class="font-label-md text-label-md text-on-surface">{{ item.quantite }} × {{ item.produit.name }}</p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          {{ item.date_fabrication.strftime('%d/%m/%Y') }} · Responsable : {{ item.responsable_nom }}
+          {% if item.numero_lot %} · Lot {{ item.numero_lot }}{% endif %}
+          {% if item.ddm_dlc %} · DDM/DLC {{ item.ddm_dlc.strftime('%d/%m/%Y') }}{% endif %}
+        </p>
+        {% if item.observations %}
+        <p class="font-body-md text-xs text-on-surface-variant mt-1 italic">« {{ item.observations }} »</p>
+        {% endif %}
+      </div>
+    </div>
+    <a href="{{ url_for('production.modifier', fabrication_id=item.id) }}" class="w-11 h-11 flex-shrink-0 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full" title="Modifier">
+      <span class="material-symbols-outlined text-[20px]">edit</span>
+    </a>
+  </div>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune fabrication enregistrée.</p>
+  {% endfor %}
+</div>
+{% endblock %}
