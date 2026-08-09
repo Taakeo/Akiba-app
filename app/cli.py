@@ -104,13 +104,16 @@ def _seed_catalogue_demo(admin):
     if Produit.query.first():
         return  # catalogue déjà initialisé, on ne duplique pas
 
-    # Comptes financiers et moyens de paiement (§7.4 spec)
+    # Comptes financiers et moyens de paiement (§7.4 spec) — une seule caisse
+    # physique à la fois (celle sur laquelle s'ouvrent/se ferment les
+    # sessions de caisse, §2 spec mono-poste) : Caisse Euro n'est qu'une
+    # petite caisse d'appoint en devise étrangère, pas le tiroir suivi par
+    # les sessions (retour utilisateur du 09/08/2026 — les deux comptes
+    # avaient auparavant is_caisse_physique=True simultanément, ambigu).
     caisse_ariary = _get_or_create(
         CompteFinancier, name="Caisse Ariary", defaults={"devise": "Ar", "is_caisse_physique": True}
     )
-    caisse_euro = _get_or_create(
-        CompteFinancier, name="Caisse Euro", defaults={"devise": "€", "is_caisse_physique": True}
-    )
+    caisse_euro = _get_or_create(CompteFinancier, name="Caisse Euro", defaults={"devise": "€"})
     orange_money = _get_or_create(CompteFinancier, name="Orange Money n°1", defaults={"devise": "Ar"})
     mvola = _get_or_create(CompteFinancier, name="Compte Mvola", defaults={"devise": "Ar"})
     airtel = _get_or_create(CompteFinancier, name="Compte Airtel", defaults={"devise": "Ar"})

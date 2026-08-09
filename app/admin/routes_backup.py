@@ -6,11 +6,13 @@ from . import bp
 from .backup_service import (
     BackupError,
     creer_sauvegarde,
+    creer_sauvegarde_externe,
     dossier_sauvegardes_actuel,
     ecrire_destination_sauvegarde,
     espace_disque_disponible,
     lire_audit_log,
     lire_destination_sauvegarde,
+    lister_lecteurs_disponibles,
     lister_sauvegardes,
     restaurer_sauvegarde,
 )
@@ -31,6 +33,7 @@ def sauvegardes():
         destination_configuree=lire_destination_sauvegarde(current_app),
         espace_libre=espace[0] if espace else None,
         espace_total=espace[1] if espace else None,
+        lecteurs=lister_lecteurs_disponibles(),
     )
 
 
@@ -55,6 +58,27 @@ def sauvegarde_nouvelle():
     try:
         nom = creer_sauvegarde(current_app, current_user)
         flash(f"Sauvegarde {nom} créée.", "info")
+    except BackupError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.sauvegardes"))
+
+
+@bp.route("/sauvegardes/nouvelle-externe/<lettre>", methods=["POST"])
+@permission_required("admin")
+def sauvegarde_nouvelle_externe(lettre):
+    """Sauvegarde manuelle vers un disque externe/clé USB détecté
+    automatiquement — seule vraie protection contre la perte totale du
+    poste. `lettre` est revalidée ici plutôt qu'acceptée telle quelle : un
+    disque débranché entre l'affichage de la page et le clic ne doit jamais
+    planter l'application, juste afficher un message clair."""
+    lettre = lettre.upper()
+    if lettre not in {l["lettre"] for l in lister_lecteurs_disponibles()}:
+        flash(f"Le lecteur {lettre}: n'est plus disponible — vérifiez qu'il est bien branché et réessayez.", "error")
+        return redirect(url_for("admin.sauvegardes"))
+
+    try:
+        nom = creer_sauvegarde_externe(current_app, current_user, lettre)
+        flash(f"Sauvegarde {nom} créée sur le lecteur {lettre}:.", "info")
     except BackupError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.sauvegardes"))

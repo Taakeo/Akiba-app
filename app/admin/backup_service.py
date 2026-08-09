@@ -14,6 +14,11 @@ class BackupError(Exception):
     pass
 
 
+# Nom du dossier créé à la racine d'un disque externe/clé USB pour une
+# sauvegarde manuelle "hors du PC" — parité avec École/Dispensaire Akiba.
+NOM_DOSSIER_SAUVEGARDES_EXTERNES = "Sauvegardes_AKIBA_APP"
+
+
 def log_audit(app, action, detail, current_user):
     """Journal d'audit en fichier plat, volontairement séparé de la base de
     données : le CDC (§13.1) exige que la création du log de restauration
@@ -133,9 +138,28 @@ def lister_sauvegardes(app):
     return items
 
 
+def _copier_cles_de_chiffrement(app, backup_dir):
+    """Copie le `.env` (s'il existe) et les clés auto-générées et persistées
+    dans INSTANCE_DIR (`.flask_secret_key`, `.db_encryption_key`, utilisées
+    si aucun `.env` ne les fournit — voir config.py::_cle_persistante) à
+    l'intérieur de la sauvegarde. Sans elles, la base chiffrée copiée dans
+    cette même sauvegarde est illisible pour toujours en cas de
+    restauration sur un nouveau poste — même piège déjà rencontré et
+    corrigé sur le projet École Akiba (07/08/2026)."""
+    env_path = Path(app.config["ENV_FILE_PATH"])
+    if env_path.exists():
+        shutil.copy2(env_path, backup_dir / ".env")
+
+    instance_dir = Path(app.config["INSTANCE_DIR"])
+    for nom_cle in (".flask_secret_key", ".db_encryption_key"):
+        chemin_cle = instance_dir / nom_cle
+        if chemin_cle.exists():
+            shutil.copy2(chemin_cle, backup_dir / nom_cle)
+
+
 def creer_sauvegarde(app, current_user):
-    """Copie horodatée de la base chiffrée + des pièces jointes. Purge les
-    sauvegardes au-delà de BACKUP_KEEP_COUNT. §13.1 spec."""
+    """Copie horodatée de la base chiffrée + des pièces jointes + des clés
+    de chiffrement. Purge les sauvegardes au-delà de BACKUP_KEEP_COUNT. §13.1 spec."""
     horodatage = utcnow().strftime("%Y%m%d_%H%M%S")
     backup_dir = dossier_sauvegardes_actuel(app) / horodatage
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -155,10 +179,61 @@ def creer_sauvegarde(app, current_user):
     if uploads_root.exists():
         shutil.copytree(uploads_root, backup_dir / "uploads", dirs_exist_ok=True)
 
+    _copier_cles_de_chiffrement(app, backup_dir)
+
     _purger_anciennes_sauvegardes(app)
     log_audit(app, "sauvegarde_creee", horodatage, current_user)
 
     return horodatage
+
+
+def creer_sauvegarde_externe(app, current_user, lettre_lecteur):
+    """Sauvegarde manuelle vers un disque externe/clé USB détecté
+    automatiquement (retour utilisateur du 09/08/2026, parité avec l'École
+    et le Dispensaire) : seule vraie protection contre la perte totale du
+    poste (vol, panne définitive) — la sauvegarde locale (`creer_sauvegarde`)
+    reste sur le même disque que l'application. `lettre_lecteur` est
+    revalidée par l'appelant (route), pas ici."""
+    dossier_externe = Path(f"{lettre_lecteur}:/") / NOM_DOSSIER_SAUVEGARDES_EXTERNES
+    horodatage = utcnow().strftime("%Y%m%d_%H%M%S")
+    backup_dir = dossier_externe / horodatage
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    db_path = Path(app.config["DATABASE_PATH"])
+    if not db_path.exists():
+        raise BackupError("Aucune base de données à sauvegarder.")
+
+    db.session.commit()
+    db.engine.dispose()
+
+    shutil.copy2(db_path, backup_dir / db_path.name)
+
+    uploads_root = Path(app.config["UPLOADS_ROOT"])
+    if uploads_root.exists():
+        shutil.copytree(uploads_root, backup_dir / "uploads", dirs_exist_ok=True)
+
+    _copier_cles_de_chiffrement(app, backup_dir)
+
+    log_audit(app, "sauvegarde_externe_creee", f"lecteur={lettre_lecteur} nom={horodatage}", current_user)
+
+    return horodatage
+
+
+def lister_lecteurs_disponibles():
+    """Lettres de lecteur disponibles (hors C:, le disque système) avec
+    leur espace libre en Go — permet de proposer un bouton par disque
+    externe/clé USB branché, sans qu'un utilisateur non technique ait à
+    connaître la notion de "lettre de lecteur" à l'avance."""
+    lecteurs = []
+    for lettre in "DEFGHIJKLMNOPQRSTUVWXYZ":
+        chemin = f"{lettre}:\\"
+        if Path(chemin).exists():
+            try:
+                _total, _utilise, libre = shutil.disk_usage(chemin)
+                lecteurs.append({"lettre": lettre, "libre_go": libre // (1024**3)})
+            except OSError:
+                continue
+    return lecteurs
 
 
 def _purger_anciennes_sauvegardes(app):
@@ -194,3 +269,18 @@ def restaurer_sauvegarde(app, nom, current_user):
         if uploads_root.exists():
             shutil.rmtree(uploads_root)
         shutil.copytree(backup_uploads, uploads_root)
+
+    # En usage normal (restauration sur le même poste), .env/clés sont déjà
+    # strictement identiques à ceux de la sauvegarde. Mais dans le scénario
+    # même où une restauration a un sens (base corrompue, disque remplacé),
+    # ils peuvent être absents ou différents : les restaurer ensemble
+    # garantit qu'ils restent cohérents avec la base qu'ils déchiffrent —
+    # même raisonnement qu'à la création (_copier_cles_de_chiffrement).
+    backup_env = backup_dir / ".env"
+    if backup_env.exists():
+        shutil.copy2(backup_env, Path(app.config["ENV_FILE_PATH"]))
+    instance_dir = Path(app.config["INSTANCE_DIR"])
+    for nom_cle in (".flask_secret_key", ".db_encryption_key"):
+        backup_cle = backup_dir / nom_cle
+        if backup_cle.exists():
+            shutil.copy2(backup_cle, instance_dir / nom_cle)

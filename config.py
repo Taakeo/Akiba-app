@@ -75,6 +75,18 @@ class Config:
     SECRET_KEY = _cle_persistante(".flask_secret_key", "FLASK_SECRET_KEY")
     DB_ENCRYPTION_KEY = _cle_persistante(".db_encryption_key", "DB_ENCRYPTION_KEY")
 
+    # Chemin du `.env` réellement utilisé (s'il existe) — à côté de l'exe en
+    # exécutable, à la racine du projet en dev (même logique que
+    # `load_dotenv` ci-dessus). Une sauvegarde qui omettrait ce fichier
+    # laisserait une base chiffrée illisible pour toujours en cas de
+    # restauration sur un nouveau poste (même piège déjà rencontré et
+    # corrigé sur le projet École Akiba, 07/08/2026) — voir
+    # backup_service.py::creer_sauvegarde.
+    if getattr(sys, "frozen", False):
+        ENV_FILE_PATH = Path(sys.executable).resolve().parent / ".env"
+    else:
+        ENV_FILE_PATH = BASE_DIR / ".env"
+
     INSTANCE_DIR = INSTANCE_DIR
     DATABASE_PATH = INSTANCE_DIR / "akiba.sqlite"
 

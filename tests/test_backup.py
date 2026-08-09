@@ -179,3 +179,111 @@ def test_purge_conserve_seulement_les_n_plus_recentes(file_app):
 
     assert len(restants) == 2
     assert {b["nom"] for b in restants} == {"20200101_000001", "20200101_000002"}
+
+
+def test_creer_sauvegarde_inclut_env_et_cles(tmp_path):
+    """Sans le `.env`/les clés persistées, une base chiffrée copiée dans une
+    sauvegarde est illisible pour toujours en cas de restauration sur un
+    nouveau poste — même piège déjà rencontré et corrigé sur le projet
+    École Akiba (07/08/2026)."""
+    from app import create_app
+    from app.admin.backup_service import creer_sauvegarde
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("FLASK_SECRET_KEY=abc\nDB_ENCRYPTION_KEY=def\n", encoding="utf-8")
+
+    config_cls = _make_config(tmp_path)
+    config_cls.ENV_FILE_PATH = env_path
+    app = create_app(config_cls)
+
+    # Simule les clés auto-générées et persistées dans INSTANCE_DIR (cas
+    # sans .env explicite — voir config.py::_cle_persistante).
+    (tmp_path / ".flask_secret_key").write_text("cle-secrete", encoding="utf-8")
+    (tmp_path / ".db_encryption_key").write_text("cle-chiffrement", encoding="utf-8")
+
+    with app.app_context():
+        nom = creer_sauvegarde(app, FakeUser())
+
+    backup_dir = tmp_path / "sauvegardes" / nom
+    assert (backup_dir / ".env").read_text(encoding="utf-8") == env_path.read_text(encoding="utf-8")
+    assert (backup_dir / ".flask_secret_key").read_text(encoding="utf-8") == "cle-secrete"
+    assert (backup_dir / ".db_encryption_key").read_text(encoding="utf-8") == "cle-chiffrement"
+
+
+def test_restaurer_sauvegarde_restaure_env_et_cles(tmp_path):
+    from app import create_app
+    from app.admin.backup_service import creer_sauvegarde, restaurer_sauvegarde
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("FLASK_SECRET_KEY=original\n", encoding="utf-8")
+
+    config_cls = _make_config(tmp_path)
+    config_cls.ENV_FILE_PATH = env_path
+    app = create_app(config_cls)
+
+    with app.app_context():
+        nom = creer_sauvegarde(app, FakeUser())
+
+    # Le .env "courant" change après la sauvegarde (scénario : disque
+    # remplacé, .env différent en place) — la restauration doit le remettre
+    # cohérent avec la base qu'il déchiffre.
+    env_path.write_text("FLASK_SECRET_KEY=modifie\n", encoding="utf-8")
+
+    with app.app_context():
+        restaurer_sauvegarde(app, nom, FakeUser())
+
+    assert env_path.read_text(encoding="utf-8") == "FLASK_SECRET_KEY=original\n"
+
+
+def test_lister_lecteurs_disponibles(monkeypatch):
+    from pathlib import Path
+
+    from app.admin.backup_service import lister_lecteurs_disponibles
+
+    def fake_exists(self):
+        return str(self) in ("D:\\", "E:\\")
+
+    def fake_disk_usage(chemin):
+        return (100 * 1024**3, 40 * 1024**3, 60 * 1024**3) if str(chemin) == "D:\\" else (100 * 1024**3, 90 * 1024**3, 10 * 1024**3)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+    monkeypatch.setattr("shutil.disk_usage", fake_disk_usage)
+
+    lecteurs = lister_lecteurs_disponibles()
+    assert [l["lettre"] for l in lecteurs] == ["D", "E"]
+    assert lecteurs[0]["libre_go"] == 60
+    assert lecteurs[1]["libre_go"] == 10
+
+
+def test_creer_sauvegarde_externe(tmp_path, monkeypatch):
+    from pathlib import Path as RealPath
+
+    from app import create_app
+    from app.admin import backup_service
+    from app.admin.backup_service import NOM_DOSSIER_SAUVEGARDES_EXTERNES, creer_sauvegarde_externe
+
+    disque = tmp_path / "disque_D"
+    disque.mkdir()
+
+    # Redirige "D:/" vers un vrai dossier temporaire, sans dépendre d'un
+    # vrai lecteur D: sur la machine qui exécute les tests.
+    monkeypatch.setattr(
+        backup_service, "Path", lambda p="": RealPath(str(p).replace("D:/", str(disque) + "/"))
+    )
+
+    app = create_app(_make_config(tmp_path))
+    with app.app_context():
+        nom = creer_sauvegarde_externe(app, FakeUser(), "D")
+
+    cible = disque / NOM_DOSSIER_SAUVEGARDES_EXTERNES / nom
+    assert (cible / "akiba.sqlite").exists()
+
+
+def test_route_sauvegarde_externe_refuse_lecteur_absent(client, login_admin, catalogue, monkeypatch):
+    from app.admin import routes_backup
+
+    monkeypatch.setattr(routes_backup, "lister_lecteurs_disponibles", lambda: [])
+
+    response = client.post("/admin/sauvegardes/nouvelle-externe/Z", follow_redirects=True)
+    assert response.status_code == 200
+    assert "plus disponible".encode() in response.data

@@ -31,9 +31,42 @@
 
 <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8">
   <div class="flex items-center gap-3 mb-4">
-    <span class="material-symbols-outlined text-primary">hard_drive</span>
-    <h3 class="font-headline-md text-headline-md text-on-surface">Disque de destination</h3>
+    <span class="material-symbols-outlined text-primary">usb</span>
+    <h3 class="font-headline-md text-headline-md text-on-surface">Sauvegarder sur un disque externe</h3>
   </div>
+  <p class="font-body-md text-sm text-on-surface-variant mb-4">
+    Branchez un disque dur externe ou une clé USB, puis cliquez sur son nom ci-dessous — la base ET les pièces
+    jointes sont copiées ensemble dans un dossier <code>{{ "Sauvegardes_AKIBA_APP" }}</code> à la racine du
+    disque. Gardez toujours ce disque en lieu sûr, à un autre endroit que le PC.
+  </p>
+  {% if lecteurs %}
+  <div class="flex flex-wrap gap-3">
+    {% for lecteur in lecteurs %}
+    <form method="post" action="{{ url_for('admin.sauvegarde_nouvelle_externe', lettre=lecteur.lettre) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="h-touch-target-min px-5 flex items-center gap-2 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[20px]">usb</span>
+        Sauvegarder sur le lecteur {{ lecteur.lettre }}: ({{ lecteur.libre_go }} Go libres)
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="font-body-md text-sm text-on-surface-variant italic">Aucun disque externe ou clé USB détecté pour le moment. Branchez-en un puis rechargez cette page.</p>
+  {% endif %}
+</div>
+
+<div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 mb-8">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="material-symbols-outlined text-primary">hard_drive</span>
+    <h3 class="font-headline-md text-headline-md text-on-surface">Sauvegarde locale automatique</h3>
+  </div>
+  <p class="font-body-md text-sm text-on-surface-variant mb-1">
+    En plus de la sauvegarde manuelle vers un disque externe ci-dessus, une copie est faite automatiquement deux
+    fois par jour sur ce PC — pour ne jamais perdre plus d'une demi-journée de données, même si personne n'a
+    branché de disque externe récemment. <strong>Ce n'est pas un remplacement du disque externe</strong> : elle
+    reste sur ce même PC, et disparaît avec lui en cas de vol ou de panne définitive.
+  </p>
   <p class="font-body-md text-sm text-on-surface-variant mb-1">
     Dossier utilisé actuellement : <strong class="text-on-surface">{{ dossier_actuel }}</strong>
     {% if espace_libre is not none %}
@@ -89,9 +122,16 @@
       <p class="font-body-md text-body-md text-on-surface">
         {{ dict([
           ("sauvegarde_creee", "Sauvegarde créée"),
+          ("sauvegarde_externe_creee", "Sauvegarde créée sur disque externe"),
           ("sauvegarde_restauree", "Sauvegarde restaurée"),
           ("utilisateur_supprime", "Utilisateur supprimé définitivement"),
           ("utilisateurs_purges", "Utilisateurs purgés automatiquement"),
+          ("profil_cree", "Profil créé"),
+          ("profil_modifie", "Profil modifié"),
+          ("utilisateur_cree", "Utilisateur créé"),
+          ("utilisateur_suspendu", "Utilisateur suspendu"),
+          ("utilisateur_reactive", "Utilisateur réactivé"),
+          ("utilisateur_pin_regenere", "PIN régénéré"),
         ]).get(entry.action, entry.action) }} — {{ entry.detail }}
       </p>
       <p class="font-body-md text-xs text-on-surface-variant mt-1">par {{ entry.utilisateur }}</p>
