@@ -290,9 +290,11 @@ pytest
   poste/catégorie/sous-catégorie/projet) mais client au lieu de fournisseur
   (fiche existante recherchable ou client de passage en texte libre) et
   recette au lieu de dépense — un produit catalogué optionnel déduit le stock
-  comme une vente PDV. Le compte crédité est toujours le Compte Akiba/
-  coffre-fort, quel que soit le moyen de paiement choisi (affiché pour la
-  cohérence visuelle avec achats/PDV, jamais pour déterminer le compte réel).
+  comme une vente PDV. Le compte crédité est celui auquel le moyen de
+  paiement choisi est réellement rattaché (Compte Akiba, BMOI, Orange
+  Money...) — exactement le même mécanisme qu'un achat payé "Compte Akiba
+  (coffre-fort)" ; seul le tiroir-caisse physique du PDV est exclu de la
+  liste des moyens proposés, jamais crédité par une vente externe.
 - Packaging (`Produit.vendable_pdv`/`packaging_produit_id`,
   `Fabrication.packaging_produit_id`/`quantite_packaging`) : un emballage est
   une fiche produit comme une autre (acheté, stocké, avec seuil d'alerte)

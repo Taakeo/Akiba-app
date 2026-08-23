@@ -2,7 +2,7 @@ from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..auth.decorators import permission_required
-from ..caisse.services import crediter_compte, get_compte_akiba, montant_devise_depuis_ariary
+from ..caisse.services import crediter_compte, montant_depuis_ariary
 from ..extensions import db
 from ..models import (
     Categorie,
@@ -41,12 +41,15 @@ def _populate_choices(form):
     form.produit_id.choices = [(0, "—")] + [
         (p.id, p.name) for p in Produit.query.filter_by(is_archived=False).order_by(Produit.name)
     ]
-    # Affichés pour la cohérence visuelle avec achats/PDV — mais quel que soit
-    # celui choisi, le compte réellement crédité reste toujours le Compte
-    # Akiba (voir nouveau() ci-dessous), jamais le compte propre au moyen.
+    # Comme pour un achat payé "Compte Akiba (coffre-fort)" : seuls les moyens
+    # NON rattachés au tiroir-caisse physique du PDV sont proposés — une vente
+    # externe ne doit jamais créditer le PDV (retour utilisateur). L'argent va
+    # réellement vers le compte auquel le moyen choisi est rattaché (Compte
+    # Akiba, BMOI, Orange Money...), exactement comme pour achats/routes.py.
     form.moyen_paiement_id.choices = [
         (m.id, f"{m.name} — {m.compte_financier.name}")
         for m in MoyenPaiement.query.filter_by(is_archived=False).order_by(MoyenPaiement.name)
+        if not m.compte_financier.is_caisse_physique
     ]
 
 
@@ -100,14 +103,13 @@ def nouveau():
 
         moyen = db.session.get(MoyenPaiement, form.moyen_paiement_id.data)
 
-        # Le compte réellement crédité est toujours le Compte Akiba, quel que
-        # soit le moyen de paiement choisi ci-dessus (retour utilisateur —
-        # ces rentrées d'argent inhabituelles n'ont rien à voir avec le
-        # tiroir-caisse du PDV).
-        compte_akiba = get_compte_akiba()
-        if compte_akiba is None:
+        # Garde-fou serveur, pas seulement visuel côté formulaire : une vente
+        # externe ne doit jamais créditer le tiroir-caisse du PDV, quel que
+        # soit le moyen soumis — même principe que achats/routes.py::nouveau.
+        if moyen.compte_financier.is_caisse_physique:
             flash(
-                "Aucun compte n'est marqué « Compte Akiba » en Administration — impossible d'enregistrer cette vente.",
+                f"« {moyen.name} » est rattaché au tiroir-caisse du PDV — une vente externe ne peut pas "
+                "créditer ce compte. Choisissez un autre moyen de paiement.",
                 "error",
             )
             return _render_form(form)
@@ -144,7 +146,7 @@ def nouveau():
                 reference_id=vente_externe.id,
             )
 
-        crediter_compte(compte_akiba, montant_devise_depuis_ariary(compte_akiba.devise, montant_total))
+        crediter_compte(moyen.compte_financier, montant_depuis_ariary(moyen, montant_total))
 
         db.session.commit()
         flash("Vente externe enregistrée.", "info")

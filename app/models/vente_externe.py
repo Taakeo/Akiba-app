@@ -20,11 +20,11 @@ class VenteExterne(db.Model):
     le stock, comme une vente PDV) d'une entrée libre sans effet stock (objet
     non catalogué, don, financement).
 
-    Le compte réellement crédité est toujours le Compte Akiba/coffre-fort
-    (CompteFinancier.is_compte_akiba), quel que soit le moyen de paiement
-    choisi ici — `moyen_paiement_id` ne sert qu'à afficher un libellé cohérent
-    avec les autres formulaires (achats, PDV), pas à déterminer le compte
-    crédité (voir app/ventes_externes/routes.py)."""
+    Le compte crédité est celui auquel `moyen_paiement_id` est rattaché
+    (Compte Akiba, BMOI, Orange Money...) — jamais le tiroir-caisse physique
+    du PDV, exclu de la liste des moyens proposés (voir
+    app/ventes_externes/routes.py::_populate_choices), exactement le même
+    mécanisme que pour un achat payé "Compte Akiba (coffre-fort)"."""
 
     __tablename__ = "vente_externe"
 

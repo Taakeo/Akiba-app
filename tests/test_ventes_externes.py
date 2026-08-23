@@ -1,10 +1,17 @@
-def _ajouter_compte_akiba(db):
-    from app.models import CompteFinancier
+def _ajouter_moyen_non_pdv(db, nom_compte="Compte Akiba"):
+    """Un compte financier qui n'est PAS le tiroir-caisse physique du PDV,
+    avec son moyen de paiement — c'est celui-ci que Ventes externes doit
+    réellement créditer, exactement comme achats/routes.py le fait pour un
+    achat payé "Compte Akiba (coffre-fort)"."""
+    from app.models import CompteFinancier, MoyenPaiement
 
-    compte = CompteFinancier(name="Compte Akiba", devise="Ar", is_compte_akiba=True)
+    compte = CompteFinancier(name=nom_compte, devise="Ar")
     db.session.add(compte)
+    db.session.flush()
+    moyen = MoyenPaiement(name=f"Espèces — {nom_compte}", compte_financier_id=compte.id)
+    db.session.add(moyen)
     db.session.commit()
-    return compte.id
+    return moyen.id, compte.id
 
 
 def test_ventes_externes_requires_permission(client, login_seller):
@@ -51,14 +58,12 @@ def _payload_libre(catalogue, moyen_id, montant_total=15000):
     }
 
 
-def test_vente_externe_libre_credite_toujours_le_compte_akiba(client, login_admin, catalogue, db):
-    # Le moyen de paiement choisi est celui de la caisse PDV physique — le
-    # crédit doit quand même atterrir sur le Compte Akiba, jamais sur la
-    # caisse PDV (retour utilisateur : "peu importe [le moyen], le compte à
-    # créditer c'est le compte de Akiba/coffre fort pas le pdv").
-    compte_akiba_id = _ajouter_compte_akiba(db)
+def test_vente_externe_libre_credite_le_compte_du_moyen_choisi(client, login_admin, catalogue, db):
+    # Le compte réellement crédité est celui auquel le moyen choisi est
+    # rattaché — jamais le tiroir-caisse du PDV, qui reste à 0.
+    moyen_id, compte_id = _ajouter_moyen_non_pdv(db)
 
-    payload = _payload_libre(catalogue, catalogue["moyen_paiement_id"])
+    payload = _payload_libre(catalogue, moyen_id)
     response = client.post("/ventes-externes/nouveau", data=payload)
     assert response.status_code == 302
 
@@ -70,15 +75,15 @@ def test_vente_externe_libre_credite_toujours_le_compte_akiba(client, login_admi
     assert vente.client_nom == "Jean Rakoto"
     assert vente.produit_id is None
 
-    compte_akiba = db.session.get(CompteFinancier, compte_akiba_id)
-    assert compte_akiba.solde == 15000
+    compte = db.session.get(CompteFinancier, compte_id)
+    assert compte.solde == 15000
 
     caisse_pdv = db.session.get(CompteFinancier, catalogue["caisse_id"])
     assert caisse_pdv.solde == 0  # jamais touchée par une vente externe
 
 
 def test_vente_externe_produit_catalogue_deduit_le_stock(client, login_admin, catalogue, db):
-    compte_akiba_id = _ajouter_compte_akiba(db)
+    moyen_id, compte_id = _ajouter_moyen_non_pdv(db)
 
     payload = {
         "client_id": "0",
@@ -91,7 +96,7 @@ def test_vente_externe_produit_catalogue_deduit_le_stock(client, login_admin, ca
         "produit_id": str(catalogue["produit_id"]),
         "quantite": "3",
         "prix_unitaire": "2000",
-        "moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+        "moyen_paiement_id": str(moyen_id),
     }
     response = client.post("/ventes-externes/nouveau", data=payload)
     assert response.status_code == 302
@@ -107,14 +112,14 @@ def test_vente_externe_produit_catalogue_deduit_le_stock(client, login_admin, ca
     assert mouvement.type_mouvement == "sortie"
     assert mouvement.reference_type == "vente_externe"
 
-    compte_akiba = db.session.get(CompteFinancier, compte_akiba_id)
-    assert compte_akiba.solde == 6000  # 3 x 2000
+    compte = db.session.get(CompteFinancier, compte_id)
+    assert compte.solde == 6000  # 3 x 2000
 
 
 def test_vente_externe_refuse_sans_client(client, login_admin, catalogue, db):
-    _ajouter_compte_akiba(db)
+    moyen_id, _ = _ajouter_moyen_non_pdv(db)
 
-    payload = _payload_libre(catalogue, catalogue["moyen_paiement_id"])
+    payload = _payload_libre(catalogue, moyen_id)
     payload["client_nom"] = ""
     response = client.post("/ventes-externes/nouveau", data=payload)
     assert response.status_code == 200  # ré-affiche le formulaire, pas de redirection
@@ -124,13 +129,27 @@ def test_vente_externe_refuse_sans_client(client, login_admin, catalogue, db):
     assert VenteExterne.query.count() == 0
 
 
-def test_vente_externe_refuse_sans_compte_akiba_configure(client, login_admin, catalogue):
-    # Aucun compte marqué is_compte_akiba=True dans ce test -> message d'erreur
-    # explicite plutôt qu'un crash ou une perte silencieuse de l'argent.
+def test_vente_externe_refuse_moyen_rattache_au_pdv(client, login_admin, catalogue, db):
+    # Garde-fou serveur : même si le moyen du tiroir PDV était soumis
+    # (formulaire trafiqué, requête directe...), la vente doit être refusée —
+    # une vente externe ne doit jamais créditer le PDV.
     payload = _payload_libre(catalogue, catalogue["moyen_paiement_id"])
     response = client.post("/ventes-externes/nouveau", data=payload)
     assert response.status_code == 200
+    assert "tiroir-caisse".encode() in response.data
 
     from app.models import VenteExterne
 
     assert VenteExterne.query.count() == 0
+
+
+def test_vente_externe_formulaire_exclut_le_moyen_du_pdv(client, login_admin, catalogue, db):
+    _ajouter_moyen_non_pdv(db)
+
+    response = client.get("/ventes-externes/nouveau")
+    assert response.status_code == 200
+    # Le libellé du moyen rattaché au tiroir PDV (catalogue) ne doit apparaître
+    # nulle part dans le formulaire...
+    assert "Espèces Ariary — Caisse Ariary".encode() not in response.data
+    # ...contrairement à un moyen rattaché à un autre compte.
+    assert "Espèces — Compte Akiba".encode() in response.data
