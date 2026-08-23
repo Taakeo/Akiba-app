@@ -27,7 +27,33 @@
     </div>
     {{ field(form.observations, help="Toute précision utile sur cette fabrication.") }}
 
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.packaging_produit_id, help="Préempli si un emballage par défaut est défini sur la fiche produit — modifiable ici.") }}
+      {{ field(form.quantite_packaging, help="Laisser vide pour reprendre la quantité fabriquée (1 emballage par unité).") }}
+    </div>
+
     {{ actions("Enregistrer", url_for("production.index")) }}
   </form>
 </div>
+
+<script id="packaging-par-produit-json" type="application/json">{{ packaging_par_produit | tojson }}</script>
+<script>
+  (function () {
+    const mapping = JSON.parse(document.getElementById("packaging-par-produit-json").textContent);
+    const produitSelect = document.getElementById("produit_id");
+    const packagingSelect = document.getElementById("packaging_produit_id");
+    const quantiteInput = document.getElementById("quantite");
+    const quantitePackagingInput = document.getElementById("quantite_packaging");
+
+    function preremplirEmballage() {
+      const info = mapping[produitSelect.value];
+      packagingSelect.value = info ? String(info.packagingId) : "0";
+      if (!quantitePackagingInput.value) {
+        quantitePackagingInput.value = quantiteInput.value || "";
+      }
+    }
+
+    produitSelect.addEventListener("change", preremplirEmballage);
+  })();
+</script>
 {% endblock %}

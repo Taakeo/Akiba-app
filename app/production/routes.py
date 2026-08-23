@@ -15,16 +15,42 @@ def index():
     return render_template("production/index.html", items=items)
 
 
+def _packaging_choices():
+    return [(0, "—")] + [
+        (p.id, p.name)
+        for p in Produit.query.filter_by(is_archived=False, vendable_pdv=False).order_by(Produit.name)
+    ]
+
+
+def _packaging_par_produit():
+    """{ produit_id: {"packagingId": ..., "quantite": ...} } pour préremplir en
+    JS l'emballage par défaut d'un produit fini et sa quantité (ratio 1:1 par
+    défaut, ajustable) au changement de produit sélectionné."""
+    mapping = {}
+    for p in Produit.query.filter_by(is_archived=False, vendable_pdv=True):
+        if p.packaging_produit_id:
+            mapping[str(p.id)] = {"packagingId": p.packaging_produit_id}
+    return mapping
+
+
 @bp.route("/nouvelle", methods=["GET", "POST"])
 @permission_required("production")
 def nouvelle():
     form = FabricationForm()
     form.produit_id.choices = [
-        (p.id, p.name) for p in Produit.query.filter_by(is_archived=False).order_by(Produit.name)
+        (p.id, p.name) for p in Produit.query.filter_by(is_archived=False, vendable_pdv=True).order_by(Produit.name)
     ]
+    form.packaging_produit_id.choices = _packaging_choices()
 
     if form.validate_on_submit():
         produit = db.session.get(Produit, form.produit_id.data)
+
+        packaging = (
+            db.session.get(Produit, form.packaging_produit_id.data)
+            if form.packaging_produit_id.data
+            else None
+        )
+        quantite_packaging = form.quantite_packaging.data or form.quantite.data if packaging else None
 
         fabrication = Fabrication(
             produit_id=produit.id,
@@ -34,6 +60,8 @@ def nouvelle():
             numero_lot=form.numero_lot.data or None,
             ddm_dlc=form.ddm_dlc.data,
             observations=form.observations.data or None,
+            packaging_produit_id=packaging.id if packaging else None,
+            quantite_packaging=quantite_packaging,
             created_by_subprofile_id=current_user.id,
             created_by_name=current_user.full_name,
         )
@@ -59,11 +87,38 @@ def nouvelle():
         if form.ddm_dlc.data:
             produit.ddm_dlc = form.ddm_dlc.data
 
+        if packaging is not None:
+            enregistrer_mouvement(
+                packaging,
+                "sortie",
+                "fabrication",
+                quantite_packaging,
+                current_user,
+                commentaire=f"Emballage — Fabrication #{fabrication.id}",
+                reference_type="fabrication",
+                reference_id=fabrication.id,
+            )
+
         db.session.commit()
         flash("Fabrication enregistrée, stock mis à jour.", "info")
+
+        # Notification immédiate (pas seulement l'alerte du tableau de bord) :
+        # un emballage n'étant jamais vendable au PDV, sa seule vitrine est ce
+        # moment précis où il vient d'être consommé.
+        if packaging is not None and packaging.statut_stock in ("rupture", "faible"):
+            if packaging.statut_stock == "rupture":
+                flash(f"Stock d'emballage « {packaging.name} » en rupture.", "error")
+            else:
+                flash(
+                    f"Stock d'emballage « {packaging.name} » faible ({packaging.stock_quantite} restant(s)).",
+                    "error",
+                )
+
         return redirect(url_for("production.index"))
 
-    return render_template("production/form.html", form=form)
+    return render_template(
+        "production/form.html", form=form, packaging_par_produit=_packaging_par_produit()
+    )
 
 
 @bp.route("/<int:fabrication_id>/modifier", methods=["GET", "POST"])

@@ -167,6 +167,19 @@ class Produit(db.Model):
     # tarifs par type de client, qui restent ignorés pour ce produit.
     prix_libre = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Un emballage (sachet, bocal...) est une fiche produit comme une autre —
+    # acheté et suivi en stock normalement — mais ne doit jamais apparaître à
+    # la vente au PDV, contrairement à un produit fini (retour utilisateur :
+    # "ne doit pas être vendable dans la boutique, ce sont des produits que la
+    # boutique utilise elle-même"). Vrai par défaut : seul un emballage le
+    # désactive explicitement.
+    vendable_pdv = db.Column(db.Boolean, nullable=False, default=True)
+    # Emballage par défaut de ce produit fini (facultatif), utilisé pour
+    # préremplir le choix d'emballage à la déclaration de fabrication —
+    # modifiable à chaque fabrication, ce n'est qu'une suggestion. Plusieurs
+    # produits finis peuvent partager le même emballage (pas d'exclusivité).
+    packaging_produit_id = db.Column(db.Integer, db.ForeignKey("produit.id"), nullable=True)
+
     photo_path = db.Column(db.String(255), nullable=True)
     code_barres = db.Column(db.String(64), nullable=True)
 
@@ -183,6 +196,7 @@ class Produit(db.Model):
     poste = db.relationship("Poste")
     projet = db.relationship("Projet")
     fournisseur_principal = db.relationship("Fournisseur")
+    packaging_produit = db.relationship("Produit", remote_side=[id])
     prix_tarifs = db.relationship(
         "PrixProduit", back_populates="produit", cascade="all, delete-orphan"
     )

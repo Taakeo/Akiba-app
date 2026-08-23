@@ -271,3 +271,53 @@ pytest
   port générique "USB00x — Port d'imprimante virtuelle pour USB") puis
   `Set-Printer -Name "<nom>" -PortName "<bon port>"`, et vider la file
   bloquée (`Get-PrintJob -PrinterName "<nom>" | Remove-PrintJob`).
+- Migrations légères de schéma (`app/db_migrations.py`) : le projet n'a pas
+  d'Alembic/Flask-Migrate, seulement `db.create_all()` (qui ne modifie jamais
+  une table déjà existante). Pour qu'une mise à jour n'exige plus de repartir
+  d'une base vierge — utilisateur non technique, sans support sur place —
+  `appliquer_migrations()` (appelée après `db.create_all()`) détecte les
+  colonnes manquantes sur une base déjà en production et les ajoute elle-même
+  (`ALTER TABLE ... ADD COLUMN`), sans toucher aux données existantes.
+- PDV : la colonne des postes à gauche a été retirée (navigation simplifiée,
+  retour utilisateur), les catégories (tous postes confondus désormais) sont
+  affichées sur 2-3 lignes fixes en boutons agrandis plutôt qu'en bandeau
+  défilant — la grille produits reste inchangée, volontairement l'élément
+  principal de l'écran.
+- Ventes externes (`app/models/vente_externe.py`, blueprint
+  `ventes_externes`) : rentrées d'argent ponctuelles hors PDV (objets non
+  catalogués, dons, financements), réservées à Administrateur/Responsable
+  (nouveau droit `ventes_externes`). Calqué sur Achats (même classement
+  poste/catégorie/sous-catégorie/projet) mais client au lieu de fournisseur
+  (fiche existante recherchable ou client de passage en texte libre) et
+  recette au lieu de dépense — un produit catalogué optionnel déduit le stock
+  comme une vente PDV. Le compte crédité est toujours le Compte Akiba/
+  coffre-fort, quel que soit le moyen de paiement choisi (affiché pour la
+  cohérence visuelle avec achats/PDV, jamais pour déterminer le compte réel).
+- Packaging (`Produit.vendable_pdv`/`packaging_produit_id`,
+  `Fabrication.packaging_produit_id`/`quantite_packaging`) : un emballage est
+  une fiche produit comme une autre (acheté, stocké, avec seuil d'alerte)
+  mais jamais vendable au PDV (`vendable_pdv=False`, filtré dans
+  `app/pos/routes.py`). Un produit fini a un emballage par défaut,
+  modifiable à chaque déclaration de fabrication ; la quantité consommée vaut
+  la quantité fabriquée par défaut (ratio 1:1) mais reste éditable.
+  Déduction du stock d'emballage tracée dans le même grand livre
+  (`MouvementStock`) que tout le reste, et alerte immédiate (en plus de
+  celle du tableau de bord) si le stock d'emballage devient faible/en
+  rupture au moment même de la fabrication.
+- Rapport total (`app/rapports/services.py::rapport_total`/`bilan_total`,
+  onglet Rapports) : grand livre unifié (Ventes PDV + Ventes externes +
+  Achats + RH) et bilan par poste, calqués sur le classeur comptable de
+  référence de l'association (`Outils/Essai de compte pour akiba
+  yanis.xlsx`, feuilles "Saisie"/"BILAN") — mêmes colonnes (Mois, Poste,
+  Catégorie, Sous-catégorie, Note, Recettes, Dépenses, Projet), filtrable en
+  plus par poste/projet, exportable en `.xlsx` à 2 feuilles. Une retenue RH,
+  ou un montant sans moyen de paiement renseigné, n'a jamais d'effet réel sur
+  les comptes (§5.4 spec) : exclue des dépenses ici pour ne pas afficher de
+  l'argent qui n'a en réalité jamais bougé.
+- Déploiement : `.exe` portable unique (`pyinstaller desktop.spec`), diffusé
+  tel quel via une release GitHub — pas d'installeur tiers (évalué puis
+  écarté par choix explicite : trop de complexité ajoutée pour ce contexte).
+  Mise à jour = remplacer le fichier existant par le nouveau, même nom, même
+  emplacement (condition pour que la tâche planifiée de sauvegarde
+  automatique, qui capture le chemin de l'exe à sa création, reste valide
+  sans avoir à être recréée).

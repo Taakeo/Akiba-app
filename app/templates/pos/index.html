@@ -66,40 +66,25 @@
     </header>
 
     <div class="flex-1 flex overflow-hidden">
-      {# Postes à gauche (§4.3 spec) : chaque poste vendable au PDV (Boutique,
-         Hébergement/Restauration, Dispensaire...) filtre les catégories
-         affichées en haut, elles-mêmes adaptées au poste choisi. #}
-      <div id="postes-rail" class="w-28 flex-shrink-0 border-r border-surface-container-highest overflow-y-auto py-gutter cursor-grab select-none">
-        <div class="flex flex-col gap-3 px-2">
-          {% for p in postes %}
-          {# Nom affiché avec les "_" remplacés par des espaces (ex.
-             "BOUTIQUE_ATELIER" -> "BOUTIQUE ATELIER") pour que le texte
-             puisse revenir à la ligne dans le bouton au lieu de déborder
-             (retour utilisateur du 07/08/2026) — break-words en filet de
-             sécurité si un mot reste malgré tout trop long. #}
-          <button type="button" data-poste="{{ p.id }}" class="poste-btn flex flex-col items-center justify-center h-24 rounded-2xl bg-surface-container hover:bg-surface-variant text-on-surface-variant border border-transparent px-1">
-            <span class="material-symbols-outlined text-3xl mb-1">{{ p.icon }}</span>
-            <span class="font-label-md text-xs text-center leading-tight break-words w-full">{{ p.name.replace("_", " ") }}</span>
-          </button>
-          {% endfor %}
-        </div>
-      </div>
-
       <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {# Catégories du poste sélectionné, entre les produits et la sélection
-           de type de client (tarif) placée dans l'en-tête ci-dessus. Se fait
-           défiler à la barre, mais aussi au doigt/à la souris (voir
-           activerDragDefilement dans pos.js — retour utilisateur du
+        {# Catégories (§4.3 spec) : plus de filtrage par poste (retour
+           utilisateur — navigation simplifiée), toutes les catégories, tous
+           postes confondus, sont proposées ensemble ici, sur 2-3 lignes
+           visibles d'un coup plutôt qu'en défilement horizontal (boutons
+           volontairement plus grands pour rester lisibles/tactiles). Reste
+           défilable verticalement en filet de sécurité si le nombre de
+           catégories dépasse la hauteur réservée, et au doigt/à la souris
+           (voir activerDragDefilement dans pos.js — retour utilisateur du
            07/08/2026). #}
-        <div id="categories-bar" class="flex-shrink-0 flex items-center gap-2 px-gutter py-3 border-b border-surface-container-highest overflow-x-auto cursor-grab select-none">
-          <button type="button" data-categorie="all" class="categorie-btn flex items-center gap-1.5 shrink-0 h-11 px-4 rounded-full bg-secondary-container text-on-secondary-container touch-active">
-            <span class="material-symbols-outlined text-[20px]">apps</span>
-            <span class="font-label-md text-label-md font-bold">Tout</span>
+        <div id="categories-bar" class="flex-shrink-0 flex flex-wrap content-start items-start gap-2 px-gutter py-3 border-b border-surface-container-highest max-h-[184px] overflow-y-auto cursor-grab select-none">
+          <button type="button" data-categorie="all" class="categorie-btn flex items-center gap-2 shrink-0 h-14 px-5 rounded-full bg-secondary-container text-on-secondary-container touch-active">
+            <span class="material-symbols-outlined text-[24px]">apps</span>
+            <span class="font-label-lg text-label-lg font-bold">Tout</span>
           </button>
           {% for c in categories %}
-          <button type="button" data-categorie="{{ c.id }}" data-poste="{{ c.poste_id }}" class="categorie-btn hidden flex items-center gap-1.5 shrink-0 h-11 px-4 rounded-full bg-surface-container hover:bg-surface-variant text-on-surface-variant">
-            <span class="material-symbols-outlined text-[20px]">{{ c.icon }}</span>
-            <span class="font-label-md text-label-md">{{ c.name }}</span>
+          <button type="button" data-categorie="{{ c.id }}" class="categorie-btn flex items-center gap-2 shrink-0 h-14 px-5 rounded-full bg-surface-container hover:bg-surface-variant text-on-surface-variant">
+            <span class="material-symbols-outlined text-[24px]">{{ c.icon }}</span>
+            <span class="font-label-lg text-label-lg">{{ c.name }}</span>
           </button>
           {% endfor %}
         </div>

@@ -4,7 +4,7 @@ from flask_login import current_user
 from ..auth.decorators import permission_required
 from ..caisse.services import calculer_theorique, get_open_session
 from ..extensions import db
-from ..models import Categorie, Client, MoyenPaiement, Poste, Produit, TauxChange, TicketAttente, TypeTarif, Vente
+from ..models import Categorie, Client, MoyenPaiement, Produit, TauxChange, TicketAttente, TypeTarif, Vente
 from . import bp
 from .services import VenteError, enregistrer_vente
 
@@ -16,16 +16,18 @@ def index():
     if session is None:
         return redirect(url_for("caisse.ouverture"))
 
-    # Tous les postes actifs sont vendables au PDV (choix explicite de
-    # l'association : la Boutique/Atelier n'est pas le seul pôle à
-    # encaisser). À gauche l'écran affiche les postes, en haut les catégories
-    # se filtrent selon le poste sélectionné (§4.3, §6.3 spec).
-    postes = Poste.query.filter_by(is_archived=False).order_by(Poste.name).all()
+    # Le poste reste une classification comptable (achats, produits, rapports)
+    # mais n'est plus affiché ni utilisé pour filtrer au PDV (retour
+    # utilisateur : navigation simplifiée) — toutes les catégories, tous
+    # postes confondus, sont proposées ensemble ici.
     categories = (
         Categorie.query.filter_by(is_archived=False).order_by(Categorie.poste_id, Categorie.ordre, Categorie.name).all()
     )
+    # Un emballage (vendable_pdv=False) ne doit jamais apparaître à la vente —
+    # ce sont des produits que la boutique utilise elle-même, pas des articles
+    # proposés au client (§ demande packaging).
     produits = (
-        Produit.query.filter_by(is_archived=False)
+        Produit.query.filter_by(is_archived=False, vendable_pdv=True)
         .order_by(Produit.name)
         .all()
     )
@@ -80,7 +82,6 @@ def index():
 
     return render_template(
         "pos/index.html",
-        postes=postes,
         categories=categories,
         produits_json=produits_json,
         type_tarifs=type_tarifs,

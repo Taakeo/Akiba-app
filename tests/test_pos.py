@@ -347,6 +347,28 @@ def test_pos_index_expose_le_poste_et_le_prix_libre_des_produits(client, login_s
     assert b'"posteId":' in response.data
 
 
+def test_pos_index_exclut_les_produits_non_vendables(client, login_seller, catalogue, db):
+    # Un emballage (vendable_pdv=False) ne doit jamais apparaître au PDV — ce
+    # sont des produits que la boutique utilise elle-même, pas des articles à
+    # vendre (§ demande packaging).
+    from app.models import Produit
+
+    emballage = Produit(
+        name="Sachet tablette 20g",
+        categorie_id=catalogue["categorie_id"],
+        poste_id=catalogue["poste_id"],
+        vendable_pdv=False,
+        stock_quantite=100,
+    )
+    db.session.add(emballage)
+    db.session.commit()
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.get("/pos/")
+    assert response.status_code == 200
+    assert b"Sachet tablette 20g" not in response.data
+
+
 def test_vente_avec_prix_libre_utilise_le_montant_saisi(client, login_seller, catalogue, db):
     produit = _creer_produit_prix_libre(db, catalogue)
 

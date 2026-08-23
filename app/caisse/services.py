@@ -34,15 +34,11 @@ def montant_en_ariary(moyen, montant):
     return montant
 
 
-def montant_depuis_ariary(moyen, montant_ariary):
-    """Inverse de montant_en_ariary() : convertit un montant ariary vers la
-    devise du compte du moyen de paiement. Utile quand seul le coût ariary
-    est saisi (ex. `Achat.montant_total`, toujours exprimé en ariary — c'est
-    la vraie dépense, indépendante du moyen utilisé) mais que le compte
-    réellement débité est dans une autre devise (payé en espèces euros) :
-    le compte doit refléter ce qui en est réellement sorti, pas le montant
-    ariary brut affublé du mauvais symbole monétaire."""
-    devise = moyen.compte_financier.devise
+def montant_devise_depuis_ariary(devise, montant_ariary):
+    """Convertit un montant ariary vers une devise donnée — coeur de
+    montant_depuis_ariary(), extrait à part pour les cas où le compte
+    réellement crédité n'est pas celui du moyen de paiement choisi (ex.
+    Ventes externes : toujours le Compte Akiba, quel que soit le moyen)."""
     if devise == "Ar":
         return montant_ariary
     if devise == "€":
@@ -51,6 +47,17 @@ def montant_depuis_ariary(moyen, montant_ariary):
             return montant_ariary
         return round(montant_ariary / taux)
     return montant_ariary
+
+
+def montant_depuis_ariary(moyen, montant_ariary):
+    """Inverse de montant_en_ariary() : convertit un montant ariary vers la
+    devise du compte du moyen de paiement. Utile quand seul le coût ariary
+    est saisi (ex. `Achat.montant_total`, toujours exprimé en ariary — c'est
+    la vraie dépense, indépendante du moyen utilisé) mais que le compte
+    réellement débité est dans une autre devise (payé en espèces euros) :
+    le compte doit refléter ce qui en est réellement sorti, pas le montant
+    ariary brut affublé du mauvais symbole monétaire."""
+    return montant_devise_depuis_ariary(moyen.compte_financier.devise, montant_ariary)
 
 
 def get_caisse_compte():

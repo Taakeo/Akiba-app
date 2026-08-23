@@ -77,6 +77,15 @@ class ProduitForm(FlaskForm):
     seuil_alerte = IntegerField("Seuil d'alerte de stock", validators=[Optional(), NumberRange(min=0)])
     stock_quantite = IntegerField("Stock actuel", validators=[InputRequired(), NumberRange(min=0)], default=0)
     code_barres = StringField("Code-barres", validators=[Optional(), Length(max=64)])
+    vendable_pdv = BooleanField(
+        "Vendable au Point de Vente (décocher pour un emballage/consommable interne, jamais proposé à la vente)",
+        default=True,
+    )
+    packaging_produit_id = SelectField(
+        "Emballage par défaut (facultatif — présélectionné à la déclaration de fabrication)",
+        coerce=int,
+        validators=[Optional()],
+    )
     photo = FileField(
         "Photo du produit",
         validators=[FileAllowed(PHOTO_FORMATS_AUTORISES, "Formats acceptés : JPG, PNG ou WEBP.")],

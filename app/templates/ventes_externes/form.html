@@ -1,0 +1,79 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, actions, section_header %}
+{% block title %}AKIBA APP - Nouvelle vente externe{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('ventes_externes.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Ventes externes
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Nouvelle vente externe</h2>
+  <p class="font-body-md text-sm text-on-surface-variant mt-1">Objet non catalogué, don, financement... — le montant crédite toujours le Compte Akiba, quel que soit le moyen de paiement choisi.</p>
+</header>
+
+<form method="post" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter max-w-4xl">
+  {{ form.hidden_tag() }}
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("person", "Client") }}
+    {{ field(form.client_id, help="Recherchez une fiche existante...") }}
+    {{ field(form.client_nom, help="...ou laissez un client de passage en texte libre. Au moins l'un des deux est requis.") }}
+
+    {{ section_header("category", "Classement comptable") }}
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.poste_id) }}
+      {{ field(form.projet_id, help="Si la vente est liée à un projet partenaire précis.") }}
+    </div>
+    <div class="grid grid-cols-2 gap-x-4">
+      {{ field(form.categorie_id) }}
+      {{ field(form.sous_categorie_id, help="La liste se filtre selon la catégorie choisie.") }}
+    </div>
+    {{ field(form.date_vente) }}
+  </div>
+
+  <div class="flex flex-col gap-gutter">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("inventory_2", "Objet vendu") }}
+      {{ field(form.produit_id, help="Uniquement si c'est un produit déjà catalogué (déduit alors le stock). Laisser vide pour un objet non catalogué (meuble...), un don ou un financement.") }}
+
+      <div id="bloc-produit" class="grid grid-cols-2 gap-x-4">
+        {{ field(form.quantite) }}
+        {{ field(form.prix_unitaire, help="Montant total calculé automatiquement (quantité × prix).") }}
+      </div>
+
+      <div id="bloc-libre">
+        {{ field(form.montant_total) }}
+      </div>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+      {{ section_header("account_balance", "Paiement") }}
+      {{ field(form.moyen_paiement_id, help="Affiché pour information — l'argent crédite toujours le Compte Akiba.") }}
+      {{ field(form.observations) }}
+    </div>
+
+    {{ actions("Enregistrer la vente", url_for("ventes_externes.index")) }}
+  </div>
+</form>
+
+<script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>
+<script id="sous-categories-json" type="application/json">{{ sous_categories_json | tojson }}</script>
+<script src="{{ url_for('static', filename='js/cascade.js') }}"></script>
+<script>
+  initCascadeSousCategorie("poste_id", "categorie_id", "categories-json", {{ (form.categorie_id.data or 0) | tojson }});
+  initCascadeSousCategorie("categorie_id", "sous_categorie_id", "sous-categories-json", {{ (form.sous_categorie_id.data or 0) | tojson }});
+
+  const produitSelect = document.getElementById("{{ form.produit_id.id }}");
+  const blocProduit = document.getElementById("bloc-produit");
+  const blocLibre = document.getElementById("bloc-libre");
+
+  function updateBlocs() {
+    const produitChoisi = produitSelect.value !== "0" && produitSelect.value !== "";
+    blocProduit.classList.toggle("hidden", !produitChoisi);
+    blocLibre.classList.toggle("hidden", produitChoisi);
+  }
+
+  produitSelect.addEventListener("change", updateBlocs);
+  updateBlocs();
+</script>
+{% endblock %}

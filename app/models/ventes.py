@@ -80,6 +80,15 @@ class LigneVente(db.Model):
 
     vente = db.relationship("Vente", back_populates="lignes")
     produit = db.relationship("Produit")
+    # Relations manquantes jusqu'ici alors que rapport_ventes() (regroupements
+    # "poste"/"catégorie"/"projet") et rapport_total() en dépendent déjà —
+    # jamais exercées par les tests existants (seuls "produit"/"date" l'étaient),
+    # d'où un bug latent (AttributeError) resté invisible jusqu'à l'ajout du
+    # Rapport total.
+    poste = db.relationship("Poste")
+    categorie = db.relationship("Categorie")
+    sous_categorie = db.relationship("SousCategorie")
+    projet = db.relationship("Projet")
 
     def calculer_total(self):
         if self.offert:

@@ -71,3 +71,92 @@ def test_modifier_fabrication_ne_touche_pas_au_stock(client, login_admin, catalo
     assert fabrication.date_fabrication.isoformat() == "2024-02-02"
     assert produit.stock_quantite == stock_apres_fabrication  # inchangé
     assert fabrication.responsable_nom == "Admin"  # inchangé, pas réassignable
+
+
+def _creer_emballage(db, catalogue, name="Sachet tablette 20g", stock_quantite=10, seuil_alerte=5):
+    from app.models import Produit
+
+    emballage = Produit(
+        name=name,
+        categorie_id=catalogue["categorie_id"],
+        poste_id=catalogue["poste_id"],
+        vendable_pdv=False,
+        stock_quantite=stock_quantite,
+        seuil_alerte=seuil_alerte,
+    )
+    db.session.add(emballage)
+    db.session.commit()
+    return emballage.id
+
+
+def test_fabrication_deduit_le_stock_emballage(client, login_admin, catalogue, db):
+    emballage_id = _creer_emballage(db, catalogue)
+
+    response = client.post(
+        "/production/nouvelle",
+        data={
+            "produit_id": str(catalogue["produit_id"]),
+            "quantite": "4",
+            "date_fabrication": "2024-02-01",
+            "packaging_produit_id": str(emballage_id),
+            "quantite_packaging": "4",
+        },
+    )
+    assert response.status_code == 302
+
+    from app.models import Fabrication, MouvementStock, Produit
+
+    emballage = db.session.get(Produit, emballage_id)
+    assert emballage.stock_quantite == 6  # 10 initial - 4 consommés
+
+    mouvement = MouvementStock.query.filter_by(produit_id=emballage_id, motif="fabrication").first()
+    assert mouvement is not None
+    assert mouvement.type_mouvement == "sortie"
+    assert mouvement.quantite == 4
+
+    fabrication = Fabrication.query.first()
+    assert fabrication.packaging_produit_id == emballage_id
+    assert fabrication.quantite_packaging == 4
+
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    assert produit.stock_quantite == 14  # 10 initial + 4 fabriqués, inchangé par l'emballage
+
+
+def test_fabrication_sans_quantite_packaging_reprend_la_quantite_fabriquee(client, login_admin, catalogue, db):
+    emballage_id = _creer_emballage(db, catalogue, stock_quantite=20)
+
+    client.post(
+        "/production/nouvelle",
+        data={
+            "produit_id": str(catalogue["produit_id"]),
+            "quantite": "6",
+            "date_fabrication": "2024-02-01",
+            "packaging_produit_id": str(emballage_id),
+        },
+    )
+
+    from app.models import Produit
+
+    emballage = db.session.get(Produit, emballage_id)
+    assert emballage.stock_quantite == 14  # 20 - 6 (ratio 1:1 par défaut)
+
+
+def test_fabrication_alerte_immediatement_si_emballage_faible(client, login_admin, catalogue, db):
+    # Seuil d'alerte à 5, stock initial 6 -> après consommation de 4, il reste
+    # 2 : sous le seuil, alerte attendue tout de suite (pas seulement sur le
+    # tableau de bord), l'emballage n'étant jamais vendable au PDV.
+    emballage_id = _creer_emballage(db, catalogue, stock_quantite=6, seuil_alerte=5)
+
+    response = client.post(
+        "/production/nouvelle",
+        data={
+            "produit_id": str(catalogue["produit_id"]),
+            "quantite": "4",
+            "date_fabrication": "2024-02-01",
+            "packaging_produit_id": str(emballage_id),
+            "quantite_packaging": "4",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"faible" in response.data.lower()

@@ -61,6 +61,13 @@
         {{ field(form.prix_achat) }}
         {{ field(form.prix_reference, help="Base du calcul des tarifs en % (ex. Adhérent -10%) définis dans Administration > Tarifs.") }}
       </div>
+
+      <label class="flex items-center gap-3 mt-2 mb-4 p-3 rounded-xl border border-outline-variant/50 cursor-pointer">
+        {{ form.vendable_pdv(class="w-5 h-5", id="vendable_pdv") }}
+        <span class="font-body-md text-sm text-on-surface">{{ form.vendable_pdv.label.text }}</span>
+      </label>
+
+      {{ field(form.packaging_produit_id, help="Uniquement les produits marqués « non vendables au PDV » ci-dessus (les emballages).") }}
     </div>
 
     <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">

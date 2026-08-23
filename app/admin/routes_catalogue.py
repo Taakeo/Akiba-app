@@ -684,6 +684,13 @@ def _populate_produit_choices(form):
     form.fournisseur_principal_id.choices = [(0, "—")] + [
         (f.id, f.name) for f in Fournisseur.query.filter_by(is_archived=False).order_by(Fournisseur.name)
     ]
+    # Seuls les produits marqués "non vendables au PDV" (des emballages, pas
+    # des produits finis) sont proposables comme emballage par défaut — évite
+    # de choisir par erreur un produit fini comme emballage d'un autre.
+    form.packaging_produit_id.choices = [(0, "—")] + [
+        (p.id, p.name)
+        for p in Produit.query.filter_by(is_archived=False, vendable_pdv=False).order_by(Produit.name)
+    ]
 
 
 def _tarifs_actifs():
@@ -733,6 +740,8 @@ def produit_nouveau():
             seuil_alerte=form.seuil_alerte.data,
             stock_quantite=form.stock_quantite.data or 0,
             code_barres=form.code_barres.data or None,
+            vendable_pdv=form.vendable_pdv.data,
+            packaging_produit_id=form.packaging_produit_id.data or None,
         )
         db.session.add(produit)
         db.session.flush()
@@ -767,6 +776,7 @@ def produit_modifier(produit_id):
         form.projet_id.data = produit.projet_id or 0
         form.sous_categorie_id.data = produit.sous_categorie_id or 0
         form.fournisseur_principal_id.data = produit.fournisseur_principal_id or 0
+        form.packaging_produit_id.data = produit.packaging_produit_id or 0
 
     tarifs = _tarifs_actifs()
 
@@ -785,6 +795,8 @@ def produit_modifier(produit_id):
         produit.seuil_alerte = form.seuil_alerte.data
         produit.stock_quantite = form.stock_quantite.data or 0
         produit.code_barres = form.code_barres.data or None
+        produit.vendable_pdv = form.vendable_pdv.data
+        produit.packaging_produit_id = form.packaging_produit_id.data or None
         _sauvegarder_tarifs(produit, tarifs)
         _enregistrer_photo(produit, form.photo.data)
         db.session.commit()

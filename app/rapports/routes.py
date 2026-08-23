@@ -3,19 +3,22 @@ from datetime import datetime, timedelta, timezone
 from flask import render_template, request, send_file
 
 from ..auth.decorators import permission_required
-from ..models import CompteFinancier, MouvementStock, Produit
+from ..models import CompteFinancier, MouvementStock, Poste, Produit, Projet
 from . import bp
-from .exports import export_achats_pdf, export_achats_xlsx, export_ventes_pdf, export_ventes_xlsx
+from .exports import export_achats_pdf, export_achats_xlsx, export_total_xlsx, export_ventes_pdf, export_ventes_xlsx
 from .services import (
     GROUPES_ACHATS,
     GROUPES_RH,
     GROUPES_VENTES,
+    bilan_total,
     parser_date,
     periode_par_defaut,
     rapport_achats,
     rapport_production,
     rapport_rh,
+    rapport_total,
     rapport_ventes,
+    taxonomie_export,
 )
 
 
@@ -184,4 +187,45 @@ def rh():
         date_fin=date_fin,
         group_by=group_by,
         groupes=GROUPES_RH,
+    )
+
+
+def _lire_filtres_total():
+    date_debut, date_fin = _lire_periode()
+    poste_id = request.args.get("poste_id", type=int) or None
+    projet_id = request.args.get("projet_id", type=int) or None
+    return date_debut, date_fin, poste_id, projet_id
+
+
+@bp.route("/total")
+@permission_required("rapports")
+def total():
+    date_debut, date_fin, poste_id, projet_id = _lire_filtres_total()
+    lignes = rapport_total(date_debut, date_fin, poste_id, projet_id)
+    bilan = bilan_total(lignes)
+    return render_template(
+        "rapports/total.html",
+        lignes=lignes,
+        bilan=bilan,
+        date_debut=date_debut,
+        date_fin=date_fin,
+        poste_id=poste_id,
+        projet_id=projet_id,
+        postes=Poste.query.filter_by(is_archived=False).order_by(Poste.name).all(),
+        projets=Projet.query.filter_by(is_archived=False).order_by(Projet.name).all(),
+    )
+
+
+@bp.route("/total/export.xlsx")
+@permission_required("rapports")
+def total_export():
+    date_debut, date_fin, poste_id, projet_id = _lire_filtres_total()
+    lignes = rapport_total(date_debut, date_fin, poste_id, projet_id)
+    bilan = bilan_total(lignes)
+    fichier = export_total_xlsx(lignes, bilan, date_debut, date_fin, taxonomie_export())
+    return send_file(
+        fichier,
+        as_attachment=True,
+        download_name=f"rapport_total_{date_debut}_{date_fin}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

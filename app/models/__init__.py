@@ -52,6 +52,7 @@ from .suppression import (
     verifier_suppression_tarif,
 )
 from .user import DEFAULT_PROFILES, Profile, SubProfile
+from .vente_externe import VenteExterne
 from .ventes import Facture, FactureCompteur, LigneVente, TicketAttente, Vente, VentePaiement
 
 __all__ = [
@@ -86,6 +87,7 @@ __all__ = [
     "Achat",
     "AchatDocument",
     "AchatRecurrent",
+    "VenteExterne",
     "MouvementStock",
     "enregistrer_mouvement",
     "Inventaire",

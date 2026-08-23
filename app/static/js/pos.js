@@ -5,9 +5,6 @@
   const moyensPaiement = posData.moyensPaiement;
   const ariaryPourUnEuro = posData.ariaryPourUnEuro || 0;
 
-  const posteButtons = Array.from(document.querySelectorAll(".poste-btn"));
-  const posteParDefaut = posteButtons.length ? posteButtons[0].dataset.poste : null;
-
   // Le défilement tactile (doigt) fonctionne nativement grâce à
   // overflow-x/y-auto — ceci ajoute le glissement à la souris (retour
   // utilisateur du 07/08/2026 : "les catégories puissent se faire dérouler
@@ -57,10 +54,10 @@
     );
   }
 
+  // La barre de catégories s'affiche désormais sur plusieurs lignes (plus de
+  // colonne des postes à gauche) : défilement vertical, pas horizontal.
   const categoriesBar = document.getElementById("categories-bar");
-  const postesRail = document.getElementById("postes-rail");
-  if (categoriesBar) activerDragDefilement(categoriesBar, "x");
-  if (postesRail) activerDragDefilement(postesRail, "y");
+  if (categoriesBar) activerDragDefilement(categoriesBar, "y");
 
   const clients = posData.clients || [];
 
@@ -86,7 +83,6 @@
   // et `search` restent globaux : ce sont des filtres d'affichage du
   // catalogue, pas un état par ticket.
   const state = {
-    poste: posteParDefaut,
     categorie: "all",
     search: "",
     tickets: [nouveauTicket("Ticket 1")],
@@ -343,23 +339,8 @@
     });
   }
 
-  function renderPosteButtons() {
-    posteButtons.forEach((btn) => {
-      const active = btn.dataset.poste === state.poste;
-      btn.classList.toggle("bg-secondary-container", active);
-      btn.classList.toggle("text-on-secondary-container", active);
-      btn.classList.toggle("bg-surface-container", !active);
-      btn.classList.toggle("text-on-surface-variant", !active);
-    });
-  }
-
   function renderCategoryButtons() {
     document.querySelectorAll(".categorie-btn").forEach((btn) => {
-      // La catégorie "Tout" reste toujours visible ; les autres se filtrent
-      // selon le poste sélectionné à gauche (§4.3, §6.3 spec).
-      const visible = btn.dataset.categorie === "all" || btn.dataset.poste === state.poste;
-      btn.classList.toggle("hidden", !visible);
-
       const active = btn.dataset.categorie === state.categorie;
       btn.classList.toggle("bg-secondary-container", active);
       btn.classList.toggle("text-on-secondary-container", active);
@@ -372,7 +353,6 @@
     const tarif = activeTicket().tarif;
     const term = state.search.trim().toLowerCase();
     const filtered = produits.filter((p) => {
-      if (state.poste && String(p.posteId) !== state.poste) return false;
       if (state.categorie !== "all" && String(p.categorie_id) !== state.categorie) return false;
       if (term) {
         const correspondNom = p.name.toLowerCase().includes(term);
@@ -584,17 +564,6 @@
 
   document.querySelectorAll(".tarif-btn").forEach((btn) => {
     btn.addEventListener("click", () => changerTarif(btn.dataset.tarif));
-  });
-
-  posteButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.poste === state.poste) return;
-      state.poste = btn.dataset.poste;
-      state.categorie = "all"; // la catégorie précédente peut ne plus exister pour ce poste
-      renderPosteButtons();
-      renderCategoryButtons();
-      renderProducts();
-    });
   });
 
   document.querySelectorAll(".categorie-btn").forEach((btn) => {
@@ -919,7 +888,6 @@
     await chargerTicketsExistants();
     renderTicketTabs();
     renderTarifButtons();
-    renderPosteButtons();
     renderCategoryButtons();
     renderProducts();
     renderCart();

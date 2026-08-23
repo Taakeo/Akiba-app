@@ -36,6 +36,7 @@ def create_app(config_class=Config):
         from .rapports import bp as rapports_bp
         from .rh import bp as rh_bp
         from .stocks import bp as stocks_bp
+        from .ventes_externes import bp as ventes_externes_bp
 
         app.register_blueprint(auth_bp, url_prefix="/auth")
         app.register_blueprint(main_bp)
@@ -43,6 +44,7 @@ def create_app(config_class=Config):
         app.register_blueprint(pos_bp, url_prefix="/pos")
         app.register_blueprint(admin_bp, url_prefix="/admin")
         app.register_blueprint(achats_bp, url_prefix="/achats")
+        app.register_blueprint(ventes_externes_bp, url_prefix="/ventes-externes")
         app.register_blueprint(stocks_bp, url_prefix="/stocks")
         app.register_blueprint(production_bp, url_prefix="/production")
         app.register_blueprint(rh_bp, url_prefix="/rh")
@@ -51,6 +53,10 @@ def create_app(config_class=Config):
         app.register_blueprint(factures_bp, url_prefix="/factures")
 
         db.create_all()
+
+        from .db_migrations import appliquer_migrations
+
+        appliquer_migrations()
 
     @login_manager.user_loader
     def load_user(user_id):

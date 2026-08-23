@@ -12,6 +12,7 @@ instance/
 # référence local, pas versionné (retour utilisateur du 08/08/2026).
 Contenu/
 AKIBA_APP_Cahier_des_charges_v1.docx
+Outils/
 
 static/dist/
 node_modules/
@@ -30,3 +31,6 @@ htmlcov/
 *.log
 .DS_Store
 Thumbs.db
+
+# Dossier d'état de session local d'un outil de développement — jamais versionné.
+.claude/

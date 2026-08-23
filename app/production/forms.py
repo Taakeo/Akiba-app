@@ -17,6 +17,13 @@ class FabricationForm(FlaskForm):
     ddm_dlc = DateField("DDM / DLC", validators=[Optional()])
     observations = TextAreaField("Note", validators=[Optional()])
 
+    packaging_produit_id = SelectField(
+        "Emballage utilisé (facultatif)", coerce=int, validators=[Optional()]
+    )
+    quantite_packaging = IntegerField(
+        "Quantité d'emballage consommée", validators=[Optional(), NumberRange(min=1)]
+    )
+
 
 class FabricationModifierForm(FlaskForm):
     """Édition d'une fabrication déjà enregistrée : quantité et produit ne
