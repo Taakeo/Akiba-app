@@ -16,19 +16,27 @@ def index():
     if session is None:
         return redirect(url_for("caisse.ouverture"))
 
-    # Le poste reste une classification comptable (achats, produits, rapports)
-    # mais n'est plus affiché ni utilisé pour filtrer au PDV (retour
-    # utilisateur : navigation simplifiée) — toutes les catégories, tous
-    # postes confondus, sont proposées ensemble ici.
-    categories = (
-        Categorie.query.filter_by(is_archived=False).order_by(Categorie.poste_id, Categorie.ordre, Categorie.name).all()
-    )
     # Un emballage (vendable_pdv=False) ne doit jamais apparaître à la vente —
     # ce sont des produits que la boutique utilise elle-même, pas des articles
     # proposés au client (§ demande packaging).
     produits = (
         Produit.query.filter_by(is_archived=False, vendable_pdv=True)
         .order_by(Produit.name)
+        .all()
+    )
+    # Le poste reste une classification comptable (achats, produits, rapports)
+    # mais n'est plus affiché ni utilisé pour filtrer au PDV (retour
+    # utilisateur : navigation simplifiée). Seules les catégories qui
+    # contiennent réellement au moins un produit vendable au PDV sont
+    # proposées ici — un poste peut mélanger des catégories de vente
+    # (ex. "Vanille") et des catégories purement comptables (ex.
+    # "Salaires_boutique", jamais de produit) : filtrer par poste seul ne
+    # suffirait pas à écarter ces dernières (retour utilisateur, revient sur
+    # la décision initiale de tout mélanger sans filtre).
+    categories_avec_produits = {p.categorie_id for p in produits}
+    categories = (
+        Categorie.query.filter(Categorie.is_archived.is_(False), Categorie.id.in_(categories_avec_produits))
+        .order_by(Categorie.poste_id, Categorie.ordre, Categorie.name)
         .all()
     )
     type_tarifs = TypeTarif.query.filter_by(is_archived=False).order_by(TypeTarif.ordre).all()

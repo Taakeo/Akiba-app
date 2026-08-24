@@ -279,10 +279,15 @@ pytest
   colonnes manquantes sur une base déjà en production et les ajoute elle-même
   (`ALTER TABLE ... ADD COLUMN`), sans toucher aux données existantes.
 - PDV : la colonne des postes à gauche a été retirée (navigation simplifiée,
-  retour utilisateur), les catégories (tous postes confondus désormais) sont
-  affichées sur 2-3 lignes fixes en boutons agrandis plutôt qu'en bandeau
-  défilant — la grille produits reste inchangée, volontairement l'élément
-  principal de l'écran.
+  retour utilisateur), les catégories sont affichées sur 2-3 lignes fixes en
+  boutons agrandis plutôt qu'en bandeau défilant — la grille produits reste
+  inchangée, volontairement l'élément principal de l'écran. Seules les
+  catégories contenant réellement au moins un produit vendable au PDV sont
+  proposées (`app/pos/routes.py::index`) : un poste peut mélanger des
+  catégories de vente (ex. "Vanille") et des catégories purement comptables
+  (ex. "Salaires_boutique", jamais de produit) — filtrer par poste seul ne
+  suffirait pas à écarter ces dernières, d'où un filtrage dérivé directement
+  des produits plutôt qu'un réglage supplémentaire à configurer à la main.
 - Ventes externes (`app/models/vente_externe.py`, blueprint
   `ventes_externes`) : rentrées d'argent ponctuelles hors PDV (objets non
   catalogués, dons, financements), réservées à Administrateur/Responsable

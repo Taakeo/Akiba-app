@@ -347,6 +347,39 @@ def test_pos_index_expose_le_poste_et_le_prix_libre_des_produits(client, login_s
     assert b'"posteId":' in response.data
 
 
+def test_pos_index_exclut_les_categories_sans_produit_vendable(client, login_seller, catalogue, db):
+    # Retour sur la décision initiale de tout mélanger sans filtre (§ PDV) :
+    # une catégorie purement comptable (aucun produit, ou seulement des
+    # emballages non vendables) ne doit plus apparaître dans la barre de
+    # catégories du PDV, même si son poste est par ailleurs un poste de vente.
+    from app.models import Categorie, Produit
+
+    categorie_comptable = Categorie(poste_id=catalogue["poste_id"], name="Salaires_boutique")
+    db.session.add(categorie_comptable)
+    db.session.flush()
+
+    categorie_emballage_seul = Categorie(poste_id=catalogue["poste_id"], name="Emballages")
+    db.session.add(categorie_emballage_seul)
+    db.session.flush()
+    db.session.add(
+        Produit(
+            name="Sachet tablette 20g",
+            categorie_id=categorie_emballage_seul.id,
+            poste_id=catalogue["poste_id"],
+            vendable_pdv=False,
+            stock_quantite=100,
+        )
+    )
+    db.session.commit()
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.get("/pos/")
+    assert response.status_code == 200
+    assert b"Salaires_boutique" not in response.data
+    assert b"Emballages" not in response.data
+    assert b"Boutique" in response.data  # la catégorie du catalogue, qui a un vrai produit vendable
+
+
 def test_pos_index_exclut_les_produits_non_vendables(client, login_seller, catalogue, db):
     # Un emballage (vendable_pdv=False) ne doit jamais apparaître au PDV — ce
     # sont des produits que la boutique utilise elle-même, pas des articles à
