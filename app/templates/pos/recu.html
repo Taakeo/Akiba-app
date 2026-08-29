@@ -7,7 +7,14 @@
     Retour au Point de Vente
   </a>
 
-  <div id="ticket" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {% if vente.statut == "annulee" %}
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4 mb-4 flex items-center gap-2 print:hidden">
+    <span class="material-symbols-outlined">cancel</span>
+    <span class="font-label-md text-label-md">Cette vente a été annulée.</span>
+  </div>
+  {% endif %}
+
+  <div id="ticket" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 {% if vente.statut == 'annulee' %}opacity-60{% endif %}">
     <header class="text-center mb-6">
       <img src="{{ url_for('static', filename='vendor/logo/akiba-logo.png') }}" alt="AKIBA" class="h-16 w-auto object-contain mx-auto mb-2">
       <p class="font-body-md text-body-md text-on-surface-variant">Ticket #{{ vente.id }}</p>
@@ -72,6 +79,26 @@
   <p class="font-body-md text-xs text-on-surface-variant text-center mt-3 print:hidden">
     Une facture officielle nécessite un client enregistré (pas un client de passage).
   </p>
+  {% endif %}
+
+  {% if current_user.profile.has_permission("corrections") and vente.statut == "validee" %}
+  <div class="mt-6 bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30 print:hidden">
+    <p class="font-label-md text-label-md text-on-surface mb-3">Corriger cette vente</p>
+    <div class="flex flex-col gap-2">
+      <a href="{{ url_for('pos.vente_modifier', vente_id=vente.id) }}" class="w-full h-touch-target-min flex items-center justify-center gap-2 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[20px]">edit</span>
+        Corriger le classement (client, catégorie...)
+      </a>
+      <form method="post" action="{{ url_for('pos.vente_annuler', vente_id=vente.id) }}" onsubmit="return window.confirm('Annuler cette vente ? Le stock et les comptes financiers seront rétablis.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="motif" required placeholder="Motif de l'annulation (obligatoire)" class="w-full h-11 px-4 mb-2 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+        <button type="submit" class="w-full h-touch-target-min flex items-center justify-center gap-2 rounded-full border border-error text-error font-label-md text-label-md">
+          <span class="material-symbols-outlined text-[20px]">cancel</span>
+          Annuler cette vente
+        </button>
+      </form>
+    </div>
+  </div>
   {% endif %}
 
   {# Choix "vente suivante / terminer la session" affiché APRÈS le ticket,

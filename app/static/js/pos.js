@@ -370,10 +370,17 @@
       // reste toujours cliquable, le montant est demandé à l'ajout au panier.
       const prix = p.prixLibre ? null : prixPour(p, tarif);
       const indisponible = !p.prixLibre && prix == null;
+
+      // Conteneur séparé du bouton d'ajout au panier — un lien "modifier la
+      // fiche produit" est ajouté à côté (pas dans) ce bouton : un <button>
+      // ne peut pas contenir un autre élément interactif imbriqué.
+      const card = document.createElement("div");
+      card.className = "relative flex flex-col bg-surface rounded-2xl overflow-hidden border border-surface-container-highest";
+
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className =
-        "flex flex-col bg-surface rounded-2xl overflow-hidden border border-surface-container-highest touch-active transition-all hover:-translate-y-1 text-left" +
+        "flex flex-col w-full h-full text-left touch-active transition-all hover:-translate-y-1" +
         (indisponible ? " opacity-40 cursor-not-allowed" : "");
       btn.disabled = indisponible;
 
@@ -405,7 +412,26 @@
       if (!indisponible) {
         btn.addEventListener("click", () => addToCart(p));
       }
-      productGrid.appendChild(btn);
+      card.appendChild(btn);
+
+      // Raccourci fiche produit — présent seulement si le serveur l'a fourni
+      // (droit "admin" côté utilisateur connecté, app/pos/routes.py). Ouvert
+      // dans un nouvel onglet pour ne jamais perdre le ticket en cours.
+      if (p.editUrl) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.title = "Modifier la fiche produit";
+        editBtn.className =
+          "absolute top-2 left-2 w-8 h-8 rounded-full bg-surface/90 flex items-center justify-center text-on-surface-variant hover:text-primary";
+        editBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">edit</span>`;
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.open(p.editUrl, "_blank");
+        });
+        card.appendChild(editBtn);
+      }
+
+      productGrid.appendChild(card);
     });
   }
 
@@ -475,6 +501,11 @@
         </div>
         <div class="flex items-center justify-between mb-2">
           <span class="font-body-md text-xs text-on-surface-variant">${formatMontant(line.prixUnitaire)} / u</span>
+          ${
+            line.remise > 0
+              ? `<span class="font-body-md text-xs text-primary font-bold">-${formatMontant(line.remise)} remise</span>`
+              : ""
+          }
         </div>
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center bg-surface-container rounded-full border border-outline-variant/20">
@@ -487,6 +518,9 @@
             </button>
           </div>
           <div class="flex items-center gap-2">
+            <button data-action="remise" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full ${line.remise > 0 ? "text-primary" : "text-on-surface-variant"} active:bg-surface-variant" title="Remise sur cet article">
+              <span class="material-symbols-outlined text-[20px]">sell</span>
+            </button>
             <button data-action="offrir" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full text-on-surface-variant active:bg-surface-variant" title="Offrir">
               <span class="material-symbols-outlined text-[20px]">redeem</span>
             </button>
@@ -503,6 +537,22 @@
       li.querySelector('[data-action="dec"]').addEventListener("click", () => {
         line.quantite -= 1;
         if (line.quantite <= 0) ticket.cart.splice(index, 1);
+        renderCart();
+      });
+      li.querySelector('[data-action="remise"]').addEventListener("click", () => {
+        // Remise ponctuelle en Ariary sur cette ligne précise — distincte
+        // d'"offrir" (retour utilisateur : "pas forcément offrir, une remise
+        // de tant d'Ar"), plafonnée au sous-total de la ligne, accessible à
+        // tout utilisateur du PDV sans restriction (même niveau d'accès que
+        // le bouton "offrir" déjà existant).
+        const sousTotalLigne = line.prixUnitaire * line.quantite;
+        const saisie = window.prompt(
+          `Remise sur "${line.name}" (Ar) ?`,
+          line.remise > 0 ? String(line.remise) : "0"
+        );
+        if (saisie === null) return;
+        const valeur = parseInt(saisie, 10);
+        line.remise = Number.isFinite(valeur) ? Math.min(Math.max(0, valeur), sousTotalLigne) : 0;
         renderCart();
       });
       li.querySelector('[data-action="offrir"]').addEventListener("click", () => {

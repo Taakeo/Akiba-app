@@ -100,6 +100,19 @@ def nouveau():
             form.montant_total.data = modele.montant_habituel
             if modele.moyen_paiement_id:
                 form.moyen_paiement_id.data = modele.moyen_paiement_id
+                # Le moyen du modèle peut être rattaché à un compte différent
+                # de celui du moyen par défaut (déjà appliqué à form.origine
+                # juste au-dessus) — sans cette resynchronisation, le JS de
+                # filtrage côté formulaire (appliquerFiltreOrigine) exclut
+                # silencieusement le moyen du modèle de la liste déroulante au
+                # chargement, et l'achat de stock échoue à la soumission sans
+                # message clair (retour utilisateur : "l'achat de stock ne
+                # fonctionne pas" via un modèle récurrent).
+                moyen_modele = db.session.get(MoyenPaiement, modele.moyen_paiement_id)
+                if moyen_modele is not None:
+                    form.origine.data = (
+                        "pdv" if moyen_modele.compte_financier.is_caisse_physique else "coffre_fort"
+                    )
 
     if form.validate_on_submit():
         type_achat = form.type_achat.data

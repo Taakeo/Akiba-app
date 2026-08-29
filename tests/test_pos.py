@@ -47,6 +47,54 @@ def test_pos_index_shows_recent_sales(client, login_seller, catalogue):
     assert "8 000".encode() in response.data or b"8000" in response.data
 
 
+def test_pos_index_expose_editurl_pour_administrateur(client, login_admin, catalogue):
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.get("/pos/")
+    assert response.status_code == 200
+    assert f'/admin/produits/{catalogue["produit_id"]}/modifier'.encode() in response.data
+
+
+def test_droit_produits_donne_acces_a_la_fiche_sans_ouvrir_tout_admin(client, app, db, catalogue):
+    # Droit étroit et distinct de "admin" (retour utilisateur : "crée une
+    # permission plus étroite juste pour ça") — donne accès au raccourci PDV
+    # + aux routes produit elles-mêmes, mais jamais au reste du panneau
+    # Administration (comptes, utilisateurs, réinitialisation...).
+    from app.models import Profile, SubProfile
+
+    with app.app_context():
+        profile = Profile(code="responsable", name="Responsable", icon="manage_accounts")
+        profile.permissions = ["point_de_vente", "caisse", "produits"]
+        db.session.add(profile)
+        db.session.commit()
+        sub = SubProfile(profile_id=profile.id, full_name="Resp")
+        sub.set_pin("4242")
+        db.session.add(sub)
+        db.session.commit()
+        profile_id, sub_id = profile.id, sub.id
+
+    client.post(f"/auth/profil/{profile_id}/utilisateur/{sub_id}", data={"pin": "4242"})
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+
+    response = client.get("/pos/")
+    assert response.status_code == 200
+    assert f'/admin/produits/{catalogue["produit_id"]}/modifier'.encode() in response.data
+
+    assert client.get(f'/admin/produits/{catalogue["produit_id"]}/modifier').status_code == 200
+    assert client.get("/admin/produits").status_code == 200
+    # Jamais le reste du panneau Admin :
+    assert client.get("/admin/").status_code == 403
+    assert client.get("/admin/reinitialisation").status_code == 403
+
+
+def test_pos_index_najamais_editurl_pour_vendeur(client, login_seller, catalogue):
+    # Le Vendeur n'a pas le droit "admin" par défaut — le raccourci fiche
+    # produit ne doit jamais pointer vers un lien qui renverrait une 403.
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.get("/pos/")
+    assert response.status_code == 200
+    assert f'/admin/produits/{catalogue["produit_id"]}/modifier'.encode() not in response.data
+
+
 def _checkout_payload(catalogue, quantite=2, montant=None):
     total = montant if montant is not None else 8000 * quantite
     return {
@@ -82,6 +130,30 @@ def test_checkout_creates_vente_and_updates_stock_and_solde(client, login_seller
     assert b"Tablette Chocolat 70%" in receipt.data
     assert "Client suivant".encode() in receipt.data  # popup "vente suivante" (fresh=1)
     assert b"vendor/logo/akiba-logo.png" in receipt.data
+
+
+def test_checkout_avec_remise_sur_une_ligne_reduit_le_total(client, login_seller, catalogue):
+    # Remise ponctuelle en Ariary sur une ligne précise (distincte d'"offert")
+    # — accessible à tout utilisateur du PDV.
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+
+    payload = {
+        "type_tarif_id": catalogue["type_tarif_id"],
+        "lignes": [{"produit_id": catalogue["produit_id"], "quantite": 2, "remise": 3000, "offert": False}],
+        "paiements": [{"moyen_paiement_id": catalogue["moyen_paiement_id"], "montant": 13000}],
+    }
+    response = client.post("/pos/vente", json=payload)
+    assert response.status_code == 200
+    assert response.get_json()["ok"] is True
+
+    from app.models import LigneVente, Vente
+
+    vente = Vente.query.order_by(Vente.id.desc()).first()
+    assert vente.total == 13000  # (8000 x 2) - 3000
+
+    ligne = LigneVente.query.filter_by(vente_id=vente.id).first()
+    assert ligne.remise == 3000
+    assert ligne.total_ligne == 13000
 
 
 def test_recu_sans_fresh_ne_montre_pas_le_popup(client, login_seller, catalogue):
@@ -434,3 +506,167 @@ def test_vente_avec_prix_libre_sans_montant_est_refusee(client, login_seller, ca
     response = client.post("/pos/vente", json=payload)
     assert response.status_code == 400
     assert "Montant invalide" in response.get_json()["error"]
+
+
+# --- Corrections administrateur : annulation de vente + édition de classement ----
+
+
+def test_annulation_requiert_le_droit_corrections(client, login_seller, catalogue):
+    # Le Vendeur (point_de_vente + caisse) n'a pas le droit "corrections" —
+    # il peut encaisser une vente mais jamais l'annuler ou en corriger le
+    # classement.
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    assert client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": "Doublon"}).status_code == 403
+    assert client.get(f"/pos/vente/{vente_id}/modifier").status_code == 403
+
+
+def test_responsable_a_le_droit_corrections_par_defaut(client, app, db, catalogue):
+    from app.models import Profile, SubProfile
+
+    with app.app_context():
+        profile = Profile(code="responsable", name="Responsable", icon="manage_accounts")
+        profile.permissions = ["point_de_vente", "caisse", "corrections"]
+        db.session.add(profile)
+        db.session.commit()
+        sub = SubProfile(profile_id=profile.id, full_name="Resp")
+        sub.set_pin("4242")
+        db.session.add(sub)
+        db.session.commit()
+        profile_id, sub_id = profile.id, sub.id
+
+    client.post(f"/auth/profil/{profile_id}/utilisateur/{sub_id}", data={"pin": "4242"})
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    assert client.get(f"/pos/vente/{vente_id}/modifier").status_code == 200
+
+
+def test_annuler_vente_restaure_le_stock_et_le_compte(client, login_admin, catalogue, db):
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=2))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    from app.models import CompteFinancier, Produit, Vente
+
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    assert produit.stock_quantite == 8  # 10 - 2
+    compte = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    assert compte.solde == 16000
+
+    resp = client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": "Saisie en double"})
+    assert resp.status_code == 302
+
+    db.session.refresh(produit)
+    db.session.refresh(compte)
+    assert produit.stock_quantite == 10  # rétabli
+    assert compte.solde == 0  # rétabli
+
+    vente = db.session.get(Vente, int(vente_id))
+    assert vente.statut == "annulee"
+    assert "Saisie en double" in vente.commentaire
+
+
+def test_annuler_vente_refuse_sans_motif(client, login_admin, catalogue, db):
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    resp = client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": ""})
+    assert resp.status_code == 302
+
+    from app.models import Vente
+
+    assert db.session.get(Vente, int(vente_id)).statut == "validee"
+
+
+def test_annuler_vente_deja_annulee_est_refusee(client, login_admin, catalogue):
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": "Première annulation"})
+
+    from app.extensions import db
+    from app.models import CompteFinancier, Produit
+
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    compte = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    stock_apres_premiere = produit.stock_quantite
+    solde_apres_premiere = compte.solde
+
+    client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": "Deuxième tentative"})
+
+    db.session.refresh(produit)
+    db.session.refresh(compte)
+    # Aucun double-rétablissement du stock/compte sur une vente déjà annulée.
+    assert produit.stock_quantite == stock_apres_premiere
+    assert compte.solde == solde_apres_premiere
+
+
+def test_annuler_vente_exclue_du_theorique_de_caisse(client, login_admin, catalogue, db):
+    from app.caisse.services import calculer_theorique
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = response.get_json()["redirect"].split("/")[-1].split("?")[0]
+
+    from app.models import CaisseSession
+
+    session = CaisseSession.query.filter_by(statut="ouverte").first()
+    assert calculer_theorique(session)["theorique"] == 8000  # fond 0 + 1 x 8000
+
+    client.post(f"/pos/vente/{vente_id}/annuler", data={"motif": "Erreur de saisie"})
+
+    db.session.refresh(session)
+    assert calculer_theorique(session)["theorique"] == 0
+
+
+def test_vente_modifier_corrige_le_classement_sans_toucher_stock_ni_montant(client, login_admin, catalogue, db):
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=2))
+    vente_id = int(response.get_json()["redirect"].split("/")[-1].split("?")[0])
+
+    from app.models import Categorie, Poste, Produit, Vente
+
+    autre_poste = Poste(name="Autre poste")
+    db.session.add(autre_poste)
+    db.session.flush()
+    autre_categorie = Categorie(poste_id=autre_poste.id, name="Autre catégorie")
+    db.session.add(autre_categorie)
+    db.session.commit()
+
+    vente = db.session.get(Vente, vente_id)
+    ligne = vente.lignes[0]
+    produit_avant = db.session.get(Produit, catalogue["produit_id"])
+    stock_avant = produit_avant.stock_quantite
+    total_avant = vente.total
+
+    resp = client.post(
+        f"/pos/vente/{vente_id}/modifier",
+        data={
+            "client_id": "0",
+            "client_nom": "Client corrigé",
+            "commentaire": "Reclassé après coup",
+            f"poste_id_{ligne.id}": str(autre_poste.id),
+            f"categorie_id_{ligne.id}": str(autre_categorie.id),
+            f"sous_categorie_id_{ligne.id}": "0",
+            f"projet_id_{ligne.id}": "0",
+        },
+    )
+    assert resp.status_code == 302
+
+    db.session.refresh(vente)
+    db.session.refresh(ligne)
+    produit_apres = db.session.get(Produit, catalogue["produit_id"])
+
+    assert vente.client_nom == "Client corrigé"
+    assert vente.commentaire == "Reclassé après coup"
+    assert ligne.poste_id == autre_poste.id
+    assert ligne.categorie_id == autre_categorie.id
+    # Jamais touché par cette correction :
+    assert vente.total == total_avant
+    assert produit_apres.stock_quantite == stock_avant

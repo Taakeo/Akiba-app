@@ -1,0 +1,61 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Réinitialisation avant production{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('admin.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Administration
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Réinitialisation avant lancement en production</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+    À utiliser une seule fois, quand toutes les données de test doivent disparaître et que la boutique démarre
+    réellement — les chiffres repartiront de zéro et s'incrémenteront à partir de la première vraie vente.
+  </p>
+</header>
+
+<div class="max-w-2xl flex flex-col gap-gutter">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <h3 class="font-label-md text-label-md text-on-surface mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">check_circle</span>
+      Conservé tel quel
+    </h3>
+    <ul class="font-body-md text-body-md text-on-surface-variant list-disc list-inside space-y-1">
+      <li>Catalogue produits, prix et stock actuels</li>
+      <li>Comptes financiers, moyens de paiement, postes, catégories, projets</li>
+      <li>Clients, fournisseurs, salariés</li>
+      <li>Utilisateurs et profils, modèles d'achats récurrents</li>
+    </ul>
+  </div>
+
+  <div class="bg-error-container/40 rounded-2xl p-6 ambient-shadow border border-error/30">
+    <h3 class="font-label-md text-label-md text-on-error-container mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined">delete_forever</span>
+      Effacé définitivement
+    </h3>
+    <ul class="font-body-md text-body-md text-on-error-container/90 list-disc list-inside space-y-1">
+      <li>Toutes les ventes, achats et ventes externes</li>
+      <li>Tout l'historique des mouvements de stock, d'inventaires et de fabrications</li>
+      <li>Toutes les sessions de caisse et mouvements de caisse</li>
+      <li>Toutes les rémunérations et absences enregistrées</li>
+      <li>Les soldes des comptes financiers et des crédits clients sont remis à 0</li>
+    </ul>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <p class="font-body-md text-body-md text-on-surface-variant mb-4">
+      Une sauvegarde complète de l'état actuel sera automatiquement créée juste avant la suppression —
+      rien n'est jamais perdu, même en cas d'erreur.
+    </p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="block font-label-md text-label-md text-on-surface mb-2">
+        Tapez « {{ phrase }} » pour confirmer
+      </label>
+      <input type="text" name="confirmation" autocomplete="off" class="w-full h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl font-body-md mb-4" placeholder="{{ phrase }}">
+      <button type="submit" class="w-full h-touch-target-min bg-error text-on-error rounded-full font-label-md text-label-md">
+        Sauvegarder puis réinitialiser
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

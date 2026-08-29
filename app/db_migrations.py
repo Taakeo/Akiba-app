@@ -51,6 +51,13 @@ def appliquer_migrations():
     if colonnes_ajoutees:
         _backfill_droit_ventes_externes()
 
+    # Backfills indépendants de tout changement de colonne (aucune colonne
+    # n'est ajoutée pour ces droits) : exécutés à chaque démarrage, mais
+    # rendus réellement ponctuels par MigrationFlag — une fois appliqué, plus
+    # jamais réimposé, même si l'administrateur retire le droit ensuite.
+    _backfill_permission_une_fois("responsable", "produits", "responsable_produits_v1")
+    _backfill_permission_une_fois("responsable", "corrections", "responsable_corrections_v1")
+
 
 def _backfill_droit_ventes_externes():
     from .models import Profile
@@ -63,4 +70,26 @@ def _backfill_droit_ventes_externes():
         return
     permissions.append("ventes_externes")
     responsable.permissions = permissions
+    db.session.commit()
+
+
+def _backfill_permission_une_fois(profile_code, permission, flag_key):
+    """Ajoute `permission` au profil `profile_code` une seule fois, jamais
+    plus après — que le profil l'ait ensuite ou non selon les choix de
+    l'administrateur. Sur une base vierge, DEFAULT_PROFILES (app/bootstrap.py)
+    inclut déjà directement ce droit : ce backfill ne sert qu'aux bases déjà
+    en production, mises à jour depuis une version antérieure."""
+    from .models import MigrationFlag, Profile
+
+    if db.session.get(MigrationFlag, flag_key) is not None:
+        return
+
+    profile = Profile.query.filter_by(code=profile_code).first()
+    if profile is not None:
+        permissions = profile.permissions
+        if permission not in permissions and "*" not in permissions:
+            permissions.append(permission)
+            profile.permissions = permissions
+
+    db.session.add(MigrationFlag(key=flag_key))
     db.session.commit()

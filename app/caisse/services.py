@@ -116,7 +116,11 @@ def calculer_theorique(session: CaisseSession):
         .join(VentePaiement.vente)
         .join(VentePaiement.moyen_paiement)
         .filter(
-            VentePaiement.vente.has(caisse_session_id=session.id),
+            # Une vente annulée (annuler_vente(), app/pos/services.py) reverse
+            # déjà son impact sur le compte via debiter_compte — sans ce
+            # filtre, son encaissement d'origine resterait compté ici en plus,
+            # faussant le théorique malgré la correction.
+            VentePaiement.vente.has(caisse_session_id=session.id, statut="validee"),
         )
         .filter(VentePaiement.moyen_paiement.has(compte_financier_id=compte_id))
         .scalar()
@@ -203,7 +207,7 @@ def resume_session_par_moyen(session):
             .join(VentePaiement.vente)
             .filter(
                 VentePaiement.moyen_paiement_id == moyen.id,
-                VentePaiement.vente.has(caisse_session_id=session.id),
+                VentePaiement.vente.has(caisse_session_id=session.id, statut="validee"),
             )
             .scalar()
         )

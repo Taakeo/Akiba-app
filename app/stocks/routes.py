@@ -8,6 +8,7 @@ from ..models import (
     Inventaire,
     InventaireLigne,
     MouvementStock,
+    Poste,
     Produit,
     enregistrer_mouvement,
 )
@@ -22,8 +23,16 @@ def index():
     ruptures = sum(1 for p in items if p.statut_stock == "rupture")
     faibles = sum(1 for p in items if p.statut_stock == "faible")
     valeur_stock = sum((p.prix_achat or 0) * p.stock_quantite for p in items)
+    categories = Categorie.query.filter_by(is_archived=False).order_by(Categorie.name).all()
+    postes = Poste.query.filter_by(is_archived=False).order_by(Poste.name).all()
     return render_template(
-        "stocks/index.html", items=items, ruptures=ruptures, faibles=faibles, valeur_stock=valeur_stock
+        "stocks/index.html",
+        items=items,
+        ruptures=ruptures,
+        faibles=faibles,
+        valeur_stock=valeur_stock,
+        categories=categories,
+        postes=postes,
     )
 
 

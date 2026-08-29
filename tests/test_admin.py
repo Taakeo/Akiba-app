@@ -157,6 +157,19 @@ def _setup_poste_categorie_tarif(db):
     return poste, categorie, tarif
 
 
+def test_produits_index_expose_les_attributs_de_filtre(client, login_admin, catalogue):
+    # Les filtres live (JS) s'appuient sur ces data-* : verrouille leur
+    # présence pour que le JS ne se retrouve jamais silencieusement inerte.
+    response = client.get("/admin/produits")
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'data-type="vendable"' in html
+    assert 'data-statut="actif"' in html
+    assert f'data-poste-id="{catalogue["poste_id"]}"' in html
+    assert f'data-categorie-id="{catalogue["categorie_id"]}"' in html
+    assert 'id="filtre-recherche"' in html
+
+
 def test_create_produit_with_tarif(client, login_admin, app, db):
     with app.app_context():
         poste, categorie, tarif = _setup_poste_categorie_tarif(db)

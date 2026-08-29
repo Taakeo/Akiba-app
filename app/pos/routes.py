@@ -1,12 +1,25 @@
-from flask import abort, jsonify, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..admin.backup_service import log_audit
 from ..auth.decorators import permission_required
 from ..caisse.services import calculer_theorique, get_open_session
 from ..extensions import db
-from ..models import Categorie, Client, MoyenPaiement, Produit, TauxChange, TicketAttente, TypeTarif, Vente
+from ..models import (
+    Categorie,
+    Client,
+    MoyenPaiement,
+    Poste,
+    Produit,
+    Projet,
+    SousCategorie,
+    TauxChange,
+    TicketAttente,
+    TypeTarif,
+    Vente,
+)
 from . import bp
-from .services import VenteError, enregistrer_vente
+from .services import VenteError, annuler_vente, enregistrer_vente
 
 
 @bp.route("/")
@@ -70,6 +83,12 @@ def index():
                 prix[tt.code] = montant
         return prix
 
+    # Raccourci "fiche produit" affiché sur chaque carte du PDV — réservé aux
+    # profils ayant le droit "produits" (seul droit requis par la route
+    # admin.produit_modifier elle-même, distinct du reste du panneau Admin)
+    # pour ne jamais pointer vers un lien qui renverrait une 403.
+    peut_modifier_produits = current_user.profile.has_permission("produits")
+
     produits_json = [
         {
             "id": p.id,
@@ -82,6 +101,7 @@ def index():
             "prix": _prix_disponibles(p),
             "photoUrl": url_for("admin.produit_photo", produit_id=p.id) if p.photo_path else None,
             "codeBarres": p.code_barres,
+            "editUrl": url_for("admin.produit_modifier", produit_id=p.id) if peut_modifier_produits else None,
         }
         for p in produits
     ]
@@ -226,3 +246,82 @@ def recu(vente_id):
     # consultation ultérieure du reçu).
     fresh = request.args.get("fresh") == "1"
     return render_template("pos/recu.html", vente=vente, fresh=fresh)
+
+
+@bp.route("/vente/<int:vente_id>/annuler", methods=["POST"])
+@permission_required("corrections")
+def vente_annuler(vente_id):
+    vente = db.session.get(Vente, vente_id)
+    if vente is None:
+        abort(404)
+
+    motif = (request.form.get("motif") or "").strip()
+    try:
+        annuler_vente(vente, motif, current_user)
+    except VenteError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(url_for("pos.recu", vente_id=vente.id))
+
+    log_audit(current_app, "vente_annulee", f"Vente #{vente.id} — {motif}", current_user)
+    flash("Vente annulée : stock et comptes financiers ont été rétablis.", "info")
+    return redirect(url_for("pos.recu", vente_id=vente.id))
+
+
+@bp.route("/vente/<int:vente_id>/modifier", methods=["GET", "POST"])
+@permission_required("corrections")
+def vente_modifier(vente_id):
+    """Corrige le classement d'une vente déjà validée (mauvais client,
+    mauvaise catégorie...) sans jamais toucher quantité/prix/produit/paiement
+    — ces derniers passent par l'annulation (vente_annuler), pas par une
+    édition directe (retour utilisateur : les deux mécanismes sont
+    nécessaires, jamais un seul)."""
+    vente = db.session.get(Vente, vente_id)
+    if vente is None:
+        abort(404)
+
+    postes = Poste.query.filter_by(is_archived=False).order_by(Poste.name).all()
+    projets = Projet.query.filter_by(is_archived=False).order_by(Projet.name).all()
+    categories = Categorie.query.filter_by(is_archived=False).order_by(Categorie.name).all()
+    sous_categories = SousCategorie.query.filter_by(is_archived=False).order_by(SousCategorie.name).all()
+    clients = Client.query.filter_by(is_archived=False).order_by(Client.nom).all()
+
+    if request.method == "POST":
+        client_id = request.form.get("client_id", type=int)
+        if client_id:
+            client = db.session.get(Client, client_id)
+            if client is None or client.is_archived:
+                flash("Client invalide.", "error")
+                return render_template(
+                    "pos/vente_modifier.html", vente=vente, postes=postes, projets=projets,
+                    categories=categories, sous_categories=sous_categories, clients=clients,
+                )
+            vente.client_id = client.id
+            vente.client_nom = client.nom
+        else:
+            vente.client_id = None
+            vente.client_nom = (request.form.get("client_nom") or "").strip() or None
+        vente.commentaire = (request.form.get("commentaire") or "").strip() or None
+
+        for ligne in vente.lignes:
+            poste_id = request.form.get(f"poste_id_{ligne.id}", type=int)
+            categorie_id = request.form.get(f"categorie_id_{ligne.id}", type=int)
+            sous_categorie_id = request.form.get(f"sous_categorie_id_{ligne.id}", type=int)
+            projet_id = request.form.get(f"projet_id_{ligne.id}", type=int)
+
+            if poste_id and db.session.get(Poste, poste_id) is not None:
+                ligne.poste_id = poste_id
+            if categorie_id and db.session.get(Categorie, categorie_id) is not None:
+                ligne.categorie_id = categorie_id
+            ligne.sous_categorie_id = sous_categorie_id if sous_categorie_id else None
+            ligne.projet_id = projet_id if projet_id else None
+
+        log_audit(current_app, "vente_classement_corrige", f"Vente #{vente.id}", current_user)
+        db.session.commit()
+        flash("Classement de la vente mis à jour.", "info")
+        return redirect(url_for("pos.recu", vente_id=vente.id))
+
+    return render_template(
+        "pos/vente_modifier.html", vente=vente, postes=postes, projets=projets,
+        categories=categories, sous_categories=sous_categories, clients=clients,
+    )

@@ -34,12 +34,42 @@
   </div>
 </div>
 
+<div class="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30 mb-6 flex flex-wrap items-center gap-3">
+  <div class="relative flex-1 min-w-[200px]">
+    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+    <input type="text" id="filtre-recherche" placeholder="Rechercher un produit..." class="w-full h-11 pl-10 pr-4 bg-surface border border-outline-variant rounded-full font-body-md text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none">
+  </div>
+  <select id="filtre-poste" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+    <option value="">Tous les postes</option>
+    {% for poste in postes %}
+    <option value="{{ poste.id }}">{{ poste.name }}</option>
+    {% endfor %}
+  </select>
+  <select id="filtre-categorie" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+    <option value="">Toutes les catégories</option>
+    {% for categorie in categories %}
+    <option value="{{ categorie.id }}">{{ categorie.name }}</option>
+    {% endfor %}
+  </select>
+  <select id="filtre-statut-stock" class="h-11 px-3 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+    <option value="">Tous les statuts</option>
+    <option value="rupture">Rupture</option>
+    <option value="faible">Stock faible</option>
+    <option value="ok">Stock OK</option>
+    <option value="illimite">Illimité</option>
+  </select>
+</div>
+
 <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
   {% for item in items %}
-  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+  <div class="list-row flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}"
+       data-name="{{ item.name }}"
+       data-poste-id="{{ item.poste_id }}"
+       data-categorie-id="{{ item.categorie_id }}"
+       data-statut-stock="{{ item.statut_stock }}">
     <div>
       <p class="font-label-md text-label-md text-on-surface">{{ item.name }}</p>
-      <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.categorie.name }}{% if item.sous_categorie %} / {{ item.sous_categorie.name }}{% endif %}</p>
+      <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.poste.name }} · {{ item.categorie.name }}{% if item.sous_categorie %} / {{ item.sous_categorie.name }}{% endif %}</p>
     </div>
     <div class="flex items-center gap-2">
       {% if item.statut_stock == "illimite" %}
@@ -59,5 +89,20 @@
   {% else %}
   <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucun produit.</p>
   {% endfor %}
+  <p id="filtre-aucun-resultat" class="hidden p-6 font-body-md text-body-md text-on-surface-variant">Aucun produit ne correspond à ces filtres.</p>
 </div>
+
+<script src="{{ url_for('static', filename='js/list-filter.js') }}"></script>
+<script>
+  initListFilter({
+    searchInputId: "filtre-recherche",
+    rowSelector: ".list-row",
+    emptyMessageId: "filtre-aucun-resultat",
+    filters: [
+      { selectId: "filtre-poste", dataAttr: "posteId" },
+      { selectId: "filtre-categorie", dataAttr: "categorieId" },
+      { selectId: "filtre-statut-stock", dataAttr: "statutStock" },
+    ],
+  });
+</script>
 {% endblock %}

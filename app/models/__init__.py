@@ -51,7 +51,7 @@ from .suppression import (
     verifier_suppression_sous_categorie,
     verifier_suppression_tarif,
 )
-from .user import DEFAULT_PROFILES, Profile, SubProfile
+from .user import DEFAULT_PROFILES, MigrationFlag, Profile, SubProfile
 from .vente_externe import VenteExterne
 from .ventes import Facture, FactureCompteur, LigneVente, TicketAttente, Vente, VentePaiement
 
@@ -59,6 +59,7 @@ __all__ = [
     "Profile",
     "SubProfile",
     "DEFAULT_PROFILES",
+    "MigrationFlag",
     "Poste",
     "Projet",
     "Categorie",

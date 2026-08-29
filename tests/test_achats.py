@@ -312,6 +312,86 @@ def test_achat_compte_akiba_najamais_ouvrir_le_tiroir(client, login_admin, catal
     assert appels == []
 
 
+def test_formulaire_prerempli_depuis_modele_resynchronise_lorigine(client, login_admin, catalogue, db):
+    import re
+
+    from app.models import CompteFinancier, MoyenPaiement
+
+    # Moyen par défaut sur la caisse PDV (origine "pdv") — cas le plus courant.
+    moyen_pdv = db.session.get(MoyenPaiement, catalogue["moyen_paiement_id"])
+    moyen_pdv.is_default = True
+
+    # Le modèle récurrent, lui, est payé depuis le Compte Akiba (coffre-fort) —
+    # un compte différent du moyen par défaut global.
+    compte_akiba = CompteFinancier(name="Compte Akiba", devise="Ar")
+    db.session.add(compte_akiba)
+    db.session.flush()
+    moyen_akiba = MoyenPaiement(name="Espèces — Compte Akiba", compte_financier_id=compte_akiba.id)
+    db.session.add(moyen_akiba)
+    db.session.commit()
+
+    client.post(
+        "/achats/recurrents",
+        data={
+            "nom": "Farine",
+            "type_achat": "stock",
+            "fournisseur_id": "0",
+            "poste_id": str(catalogue["poste_id"]),
+            "projet_id": "0",
+            "categorie_id": str(catalogue["categorie_id"]),
+            "sous_categorie_id": "0",
+            "produit_id": str(catalogue["produit_id"]),
+            "quantite_habituelle": "10",
+            "prix_unitaire_habituel": "2000",
+            "moyen_paiement_id": str(moyen_akiba.id),
+        },
+    )
+    from app.models import AchatRecurrent
+
+    modele = AchatRecurrent.query.filter_by(nom="Farine").first()
+
+    response = client.get(f"/achats/nouveau?modele={modele.id}")
+    assert response.status_code == 200
+
+    html = response.data.decode()
+    # Le radio "coffre_fort" doit être coché — pas "pdv" (celui du moyen par
+    # défaut global) — sinon le filtre JS de la liste des moyens exclurait
+    # silencieusement le moyen du modèle au chargement (retour utilisateur :
+    # "l'achat de stock ne fonctionne pas" via un modèle récurrent).
+    balise_coffre_fort = re.search(r'<input[^>]*value="coffre_fort"[^>]*>', html)
+    assert balise_coffre_fort is not None
+    assert "checked" in balise_coffre_fort.group()
+
+    balise_pdv = re.search(r'<input[^>]*value="pdv"[^>]*>', html)
+    assert balise_pdv is not None
+    assert "checked" not in balise_pdv.group()
+
+    assert f'selected value="{moyen_akiba.id}"'.encode() in response.data
+
+    # Bout en bout : soumettre exactement ce que le formulaire prérempli
+    # proposerait ne doit plus jamais échouer.
+    payload = {
+        "type_achat": "stock",
+        "fournisseur_id": "0",
+        "date_achat": "2024-01-15",
+        "poste_id": str(catalogue["poste_id"]),
+        "projet_id": "0",
+        "categorie_id": str(catalogue["categorie_id"]),
+        "sous_categorie_id": "0",
+        "produit_id": str(catalogue["produit_id"]),
+        "quantite": "10",
+        "prix_unitaire": "2000",
+        "origine": "coffre_fort",
+        "moyen_paiement_id": str(moyen_akiba.id),
+    }
+    response = client.post("/achats/nouveau", data=payload)
+    assert response.status_code == 302
+
+    from app.models import Achat
+
+    assert Achat.query.filter_by(moyen_paiement_id=moyen_akiba.id).count() == 1
+
+
 def test_achat_origine_incoherente_avec_le_moyen_est_refusee(client, login_admin, catalogue):
     payload = _achat_stock_payload(catalogue)
     payload["origine"] = "coffre_fort"  # mais moyen_paiement_id reste le moyen PDV (physique)

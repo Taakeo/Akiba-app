@@ -1,0 +1,93 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Corriger la vente #{{ vente.id }}{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('pos.recu', vente_id=vente.id) }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Ticket #{{ vente.id }}
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Corriger le classement — Vente #{{ vente.id }}</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+    Corrige uniquement le client et le classement comptable (poste, catégorie, projet) — jamais la quantité, le
+    prix, le produit ou le paiement déjà enregistrés. Pour ces derniers, annulez la vente depuis le ticket.
+  </p>
+</header>
+
+<form method="post" class="flex flex-col gap-gutter max-w-3xl">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col gap-4">
+    <div>
+      <label class="block font-label-md text-label-md text-on-surface mb-1">Client enregistré</label>
+      <select name="client_id" class="w-full h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl">
+        <option value="0">— Client de passage —</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}" {% if vente.client_id == c.id %}selected{% endif %}>{{ c.nom }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block font-label-md text-label-md text-on-surface mb-1">Nom du client de passage</label>
+      <input type="text" name="client_nom" value="{{ vente.client_nom or '' }}" class="w-full h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl">
+    </div>
+    <div>
+      <label class="block font-label-md text-label-md text-on-surface mb-1">Commentaire</label>
+      <textarea name="commentaire" rows="2" class="w-full px-4 py-2 bg-surface border border-outline-variant rounded-xl">{{ vente.commentaire or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col gap-4">
+    <h3 class="font-label-md text-label-md text-on-surface">Classement par article</h3>
+    {% for ligne in vente.lignes %}
+    <div class="border border-outline-variant/30 rounded-xl p-4">
+      <p class="font-label-md text-label-md text-on-surface mb-3">{{ ligne.quantite }} × {{ ligne.produit_nom }}</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Poste</label>
+          <select name="poste_id_{{ ligne.id }}" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+            {% for p in postes %}
+            <option value="{{ p.id }}" {% if ligne.poste_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Projet</label>
+          <select name="projet_id_{{ ligne.id }}" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+            <option value="0">—</option>
+            {% for p in projets %}
+            <option value="{{ p.id }}" {% if ligne.projet_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Catégorie</label>
+          <select name="categorie_id_{{ ligne.id }}" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+            {% for c in categories %}
+            <option value="{{ c.id }}" {% if ligne.categorie_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Sous-catégorie</label>
+          <select name="sous_categorie_id_{{ ligne.id }}" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+            <option value="0">—</option>
+            {% for sc in sous_categories %}
+            <option value="{{ sc.id }}" {% if ligne.sous_categorie_id == sc.id %}selected{% endif %}>{{ sc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="flex gap-3">
+    <button type="submit" class="h-touch-target-min px-6 bg-primary text-on-primary rounded-full font-label-md text-label-md">
+      Enregistrer les corrections
+    </button>
+    <a href="{{ url_for('pos.recu', vente_id=vente.id) }}" class="h-touch-target-min px-6 flex items-center rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md">
+      Annuler
+    </a>
+  </div>
+</form>
+{% endblock %}

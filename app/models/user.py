@@ -38,6 +38,13 @@ PERMISSIONS_DISPONIBLES = [
     ("clients", "Clients", "person"),
     ("rapports", "Rapports", "bar_chart"),
     ("admin", "Administration (paramétrage, y compris cet écran)", "admin_panel_settings"),
+    ("corrections", "Corrections & annulations (ventes)", "restore"),
+    # Droit étroit, distinct de "admin" : seulement les fiches produit
+    # (création, modification, archivage, import) — pas le reste du panneau
+    # Administration (comptes, utilisateurs, sauvegardes...). Sert au
+    # raccourci "modifier la fiche produit" depuis le PDV (app/pos/routes.py)
+    # sans ouvrir tout le panneau Admin à qui n'a que ce besoin.
+    ("produits", "Produits (fiches, sans le reste d'Administration)", "shopping_bag"),
 ]
 
 
@@ -64,6 +71,8 @@ DEFAULT_PROFILES = [
             "rapports",
             "rh",
             "clients",
+            "produits",
+            "corrections",
         ],
     },
     {
@@ -111,6 +120,19 @@ class Profile(db.Model):
 
     def __repr__(self):
         return f"<Profile {self.code}>"
+
+
+class MigrationFlag(db.Model):
+    """Trace qu'un backfill ponctuel (ex. ajout d'un droit par défaut sur un
+    profil déjà existant) a déjà été appliqué une fois — indépendant de tout
+    changement de colonne, contrairement à COLONNES_ATTENDUES
+    (app/db_migrations.py). Permet d'ajouter un nouveau droit à un profil par
+    défaut sans jamais le réimposer si un administrateur le retire ensuite."""
+
+    __tablename__ = "migration_flag"
+
+    key = db.Column(db.String(100), primary_key=True)
+    applied_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 
 class SubProfile(UserMixin, db.Model):

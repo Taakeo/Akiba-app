@@ -1,4 +1,4 @@
-from ..caisse.services import crediter_compte, montant_en_ariary
+from ..caisse.services import crediter_compte, debiter_compte, montant_en_ariary
 from ..extensions import db
 from ..models import Client, LigneVente, MoyenPaiement, Produit, TypeTarif, Vente, VentePaiement, enregistrer_mouvement
 
@@ -142,5 +142,64 @@ def enregistrer_vente(data, session, current_user):
     elif montant_restant < 0:
         raise VenteError(f"Le total payé ({total_paye}) dépasse le total du ticket ({total}).")
 
+    db.session.commit()
+    return vente
+
+
+def annuler_vente(vente, motif, current_user):
+    """Annule une vente déjà validée (ex. double saisie par erreur) : reverse
+    proprement son impact stock + comptes financiers + crédit client, sans
+    jamais supprimer les lignes/paiements d'origine (trace d'audit conservée
+    — même esprit que AjustementCompte, jamais une correction silencieuse).
+    Réservé au droit "corrections" (app/pos/routes.py)."""
+    if vente.statut != "validee":
+        raise VenteError("Cette vente est déjà annulée.")
+    if vente.facture_id is not None:
+        raise VenteError(
+            "Cette vente est déjà facturée — elle ne peut pas être annulée directement."
+        )
+    if not motif or not motif.strip():
+        raise VenteError("Un motif est obligatoire pour annuler une vente.")
+
+    # Stock : chaque ligne ayant décrémenté un produit suivi (vente/offert,
+    # jamais stock_illimite) reçoit un mouvement d'entrée inverse.
+    for ligne in vente.lignes:
+        produit = ligne.produit
+        if produit is not None and not produit.stock_illimite:
+            enregistrer_mouvement(
+                produit,
+                "entree",
+                "correction",
+                ligne.quantite,
+                current_user,
+                commentaire=f"Annulation vente #{vente.id}",
+                reference_type="vente",
+                reference_id=vente.id,
+            )
+
+    # Comptes financiers : chaque paiement encaissé est repris dans sa propre
+    # devise, symétriquement à crediter_compte() lors de l'encaissement — les
+    # lignes VentePaiement elles-mêmes restent en base (trace d'audit).
+    for paiement in vente.paiements:
+        debiter_compte(paiement.moyen_paiement.compte_financier, paiement.montant)
+
+    # Crédit client : seulement s'il n'a pas déjà commencé à être remboursé —
+    # un reversal FIFO partiel serait trop délicat à défaire automatiquement
+    # sans risquer de désynchroniser d'autres ventes à crédit du même client.
+    if vente.montant_credit > 0:
+        if vente.credit_solde_restant < vente.montant_credit:
+            raise VenteError(
+                "Cette vente à crédit a déjà commencé à être remboursée — "
+                "elle ne peut pas être annulée automatiquement."
+            )
+        if vente.client is not None:
+            vente.client.solde_credit -= vente.credit_solde_restant
+        vente.credit_solde_restant = 0
+
+    vente.statut = "annulee"
+    vente.commentaire = (
+        f"[ANNULÉE] {motif.strip()} — par {current_user.full_name}"
+        + (f"\n{vente.commentaire}" if vente.commentaire else "")
+    )
     db.session.commit()
     return vente

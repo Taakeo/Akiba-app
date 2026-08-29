@@ -10,6 +10,18 @@ def test_stocks_index_lists_produit(client, login_admin, catalogue):
     assert b"Tablette Chocolat 70%" in response.data
 
 
+def test_stocks_index_expose_les_attributs_de_filtre(client, login_admin, catalogue):
+    # Les filtres live (JS) s'appuient sur ces data-* : verrouille leur
+    # présence pour que le JS ne se retrouve jamais silencieusement inerte.
+    response = client.get("/stocks/")
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'data-statut-stock="ok"' in html
+    assert f'data-poste-id="{catalogue["poste_id"]}"' in html
+    assert f'data-categorie-id="{catalogue["categorie_id"]}"' in html
+    assert 'id="filtre-recherche"' in html
+
+
 def test_ajustement_sortie_perte_decrements_stock(client, login_admin, catalogue):
     response = client.post(
         "/stocks/ajustement",

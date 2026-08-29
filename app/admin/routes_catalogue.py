@@ -711,14 +711,16 @@ def _prix_suggeres(tarifs, prix_reference):
 
 
 @bp.route("/produits")
-@permission_required("admin")
+@permission_required("produits")
 def produits():
     items = Produit.query.order_by(Produit.is_archived, Produit.name).all()
-    return render_template("admin/produits.html", items=items)
+    categories = Categorie.query.filter_by(is_archived=False).order_by(Categorie.name).all()
+    postes = Poste.query.filter_by(is_archived=False).order_by(Poste.name).all()
+    return render_template("admin/produits.html", items=items, categories=categories, postes=postes)
 
 
 @bp.route("/produits/nouveau", methods=["GET", "POST"])
-@permission_required("admin")
+@permission_required("produits")
 def produit_nouveau():
     form = ProduitForm()
     _populate_produit_choices(form)
@@ -764,7 +766,7 @@ def produit_nouveau():
 
 
 @bp.route("/produits/<int:produit_id>/modifier", methods=["GET", "POST"])
-@permission_required("admin")
+@permission_required("produits")
 def produit_modifier(produit_id):
     produit = db.session.get(Produit, produit_id)
     if produit is None:
@@ -832,7 +834,7 @@ def _sauvegarder_tarifs(produit, tarifs):
 
 
 @bp.route("/produits/<int:produit_id>/archiver", methods=["POST"])
-@permission_required("admin")
+@permission_required("produits")
 def produit_toggle_archive(produit_id):
     produit = db.session.get(Produit, produit_id)
     if produit is None:
@@ -843,7 +845,7 @@ def produit_toggle_archive(produit_id):
 
 
 @bp.route("/produits/<int:produit_id>/supprimer", methods=["POST"])
-@permission_required("admin")
+@permission_required("produits")
 def produit_supprimer(produit_id):
     produit = db.session.get(Produit, produit_id)
     if produit is None:
@@ -873,7 +875,7 @@ def _enregistrer_photo(produit, fichier):
 
 
 @bp.route("/produits/import", methods=["GET", "POST"])
-@permission_required("admin")
+@permission_required("produits")
 def produits_import():
     form = ImportProduitsForm()
     resultat = None
@@ -888,7 +890,7 @@ def produits_import():
 
 
 @bp.route("/produits/import/modele")
-@permission_required("admin")
+@permission_required("produits")
 def produits_import_modele():
     buffer = generer_modele_xlsx()
     return send_file(

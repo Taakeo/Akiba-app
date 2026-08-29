@@ -69,3 +69,44 @@ def test_appliquer_migrations_backfill_le_droit_ventes_externes_une_seule_fois(a
         appliquer_migrations()
         db.session.refresh(profile)
         assert "ventes_externes" not in profile.permissions
+
+
+def test_appliquer_migrations_backfill_produits_et_corrections_une_seule_fois_sans_colonne(app, db):
+    # Contrairement au backfill de ventes_externes (lié à un ajout de colonne
+    # dans cette même mise à jour), "produits" et "corrections" n'accompagnent
+    # aucun changement de schéma — le backfill doit donc s'appliquer même
+    # quand appliquer_migrations() ne touche aucune colonne.
+    from app.db_migrations import appliquer_migrations
+    from app.models import MigrationFlag, Profile
+
+    with app.app_context():
+        # Le fixture `app` a déjà démarré une fois (create_app() ->
+        # appliquer_migrations()) avant qu'aucun profil "responsable" existe
+        # dans cette base de test — les indicateurs se sont donc déjà posés
+        # sans rien avoir à backfiller. On les retire pour simuler une vraie
+        # base de production, où "responsable" existe déjà au moment où cette
+        # version du code tourne pour la première fois.
+        MigrationFlag.query.filter(
+            MigrationFlag.key.in_(["responsable_produits_v1", "responsable_corrections_v1"])
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+        profile = Profile(code="responsable", name="Responsable", icon="manage_accounts")
+        profile.permissions = ["point_de_vente", "achats"]  # ancienne base
+        db.session.add(profile)
+        db.session.commit()
+
+        appliquer_migrations()  # aucune colonne manquante ici
+        db.session.refresh(profile)
+        assert "produits" in profile.permissions
+        assert "corrections" in profile.permissions
+        assert "admin" not in profile.permissions  # jamais tout le panneau Admin
+
+        # Retiré volontairement ensuite : jamais réimposé au redémarrage suivant.
+        profile.permissions = [p for p in profile.permissions if p not in ("produits", "corrections")]
+        db.session.commit()
+
+        appliquer_migrations()
+        db.session.refresh(profile)
+        assert "produits" not in profile.permissions
+        assert "corrections" not in profile.permissions
