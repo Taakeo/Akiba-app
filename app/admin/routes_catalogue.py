@@ -759,6 +759,8 @@ def produit_nouveau():
         tarifs=tarifs,
         produit=None,
         prix_actuels={},
+        retour_url=url_for("admin.produits"),
+        depuis="",
         prix_suggeres=_prix_suggeres(tarifs, form.prix_reference.data),
         sous_categories_json=sous_categories_par_categorie(),
         categories_json=categories_par_poste(),
@@ -771,6 +773,15 @@ def produit_modifier(produit_id):
     produit = db.session.get(Produit, produit_id)
     if produit is None:
         abort(404)
+
+    # Raccourci depuis le PDV (app/pos/routes.py) : "Retour" et l'enregistrement
+    # doivent ramener au PDV plutôt qu'à la liste Produits — sinon la vendeuse
+    # venue corriger une fiche en vitesse se retrouve coincée dans
+    # Administration au lieu de revenir à son ticket en cours. Propagé en
+    # champ caché pour survivre au POST (l'URL de la requête, elle, ne l'est
+    # plus après soumission du formulaire).
+    depuis = request.values.get("depuis", "")
+    retour_url = url_for("pos.index") if depuis == "pdv" else url_for("admin.produits")
 
     form = ProduitForm(obj=produit)
     _populate_produit_choices(form)
@@ -803,7 +814,7 @@ def produit_modifier(produit_id):
         _enregistrer_photo(produit, form.photo.data)
         db.session.commit()
         flash("Produit mis à jour.", "info")
-        return redirect(url_for("admin.produits"))
+        return redirect(retour_url)
 
     prix_actuels = {prix.type_tarif_id: prix.montant for prix in produit.prix_tarifs}
     return render_template(
@@ -812,6 +823,8 @@ def produit_modifier(produit_id):
         tarifs=tarifs,
         produit=produit,
         prix_actuels=prix_actuels,
+        retour_url=retour_url,
+        depuis=depuis,
         prix_suggeres=_prix_suggeres(tarifs, form.prix_reference.data),
         sous_categories_json=sous_categories_par_categorie(),
         categories_json=categories_par_poste(),

@@ -1,4 +1,4 @@
-from ..caisse.services import crediter_compte, debiter_compte, montant_en_ariary
+from ..caisse.services import crediter_compte, debiter_compte
 from ..extensions import db
 from ..models import Client, LigneVente, MoyenPaiement, Produit, TypeTarif, Vente, VentePaiement, enregistrer_mouvement
 
@@ -52,10 +52,12 @@ def enregistrer_vente(data, session, current_user):
         offert = bool(ligne_data.get("offert"))
         remise = max(0, int(ligne_data.get("remise") or 0))
 
-        if not offert and not produit.stock_illimite and produit.stock_quantite < quantite:
-            raise VenteError(
-                f"Stock insuffisant pour {produit.name} ({produit.stock_quantite} disponible(s))."
-            )
+        # Un stock affiché à 0 (ou insuffisant) ne bloque plus la vente —
+        # l'inventaire réel du magasin peut être en avance sur l'inventaire
+        # saisi (retour utilisateur : refaire l'inventaire est la
+        # responsabilité du vendeur, pas une raison de bloquer un client au
+        # comptoir). enregistrer_mouvement() empêche que le stock affiché
+        # passe sous zéro pour autant.
 
         if produit.prix_libre:
             # Prix libre (ex. Pourboire) : pas de tarif fixe, le montant vient
@@ -115,6 +117,7 @@ def enregistrer_vente(data, session, current_user):
         raise VenteError("Aucun moyen de paiement renseigné.")
 
     total_paye = 0
+    paiement_devise_etrangere = False
     for paiement_data in paiements_data:
         montant = int(paiement_data.get("montant") or 0)
         if montant <= 0:
@@ -122,15 +125,20 @@ def enregistrer_vente(data, session, current_user):
         moyen = db.session.get(MoyenPaiement, paiement_data.get("moyen_paiement_id"))
         if moyen is None or moyen.is_archived:
             raise VenteError("Moyen de paiement invalide.")
-        # `montant` est saisi et enregistré dans la devise du moyen choisi
-        # (ex. des euros pour "Espèces Euro") — seul son équivalent ariary
-        # compte pour vérifier que le ticket est intégralement payé, le
-        # compte financier est lui crédité du montant réel dans sa devise.
-        total_paye += montant_en_ariary(moyen, montant)
         vente.paiements.append(VentePaiement(moyen_paiement_id=moyen.id, montant=montant))
         crediter_compte(moyen.compte_financier, montant)
+        if moyen.compte_financier.devise == "Ar":
+            total_paye += montant
+        else:
+            # Paiement en devise étrangère (ex. euros) : le montant saisi est
+            # manuel et définitif, jamais recalculé/comparé au total ariary
+            # via le taux de change (retour utilisateur : "c'est l'euro qui
+            # doit être pris en compte", "plus de comparaison ariary-euro").
+            # Un taux mal renseigné ou un prix négocié différent du calcul
+            # théorique ne doit jamais bloquer la vente.
+            paiement_devise_etrangere = True
 
-    montant_restant = total - total_paye
+    montant_restant = 0 if paiement_devise_etrangere else total - total_paye
     if montant_restant > 0:
         if not a_credit:
             raise VenteError(

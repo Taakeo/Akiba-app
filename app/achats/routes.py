@@ -4,8 +4,10 @@ from flask import abort, current_app, flash, redirect, render_template, request,
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 
+from ..admin.backup_service import log_audit
 from ..auth.decorators import permission_required
 from ..caisse.services import (
+    crediter_compte,
     debiter_compte,
     get_caisse_compte,
     get_open_session,
@@ -29,6 +31,7 @@ from ..models import (
     moyen_paiement_par_defaut,
     sous_categories_par_categorie,
 )
+from ..models.finance import utcnow
 from . import bp
 from .forms import AchatForm, AchatModifierForm, AchatRecurrentForm
 
@@ -252,6 +255,52 @@ def modifier(achat_id):
     return render_template(
         "achats/modifier.html", form=form, achat=achat, sous_categories_json=sous_categories_par_categorie(), categories_json=categories_par_poste()
     )
+
+
+@bp.route("/<int:achat_id>/annuler", methods=["POST"])
+@permission_required("corrections")
+def annuler(achat_id):
+    """Annule un achat déjà enregistré (droit "corrections") : reverse le
+    mouvement de stock (si achat de stock) et recrédite le compte débité à
+    l'origine — jamais de suppression, motif obligatoire, tracé (même
+    principe que pos/services.py::annuler_vente)."""
+    achat = db.session.get(Achat, achat_id)
+    if achat is None:
+        abort(404)
+    if achat.is_annule:
+        flash("Cet achat est déjà annulé.", "error")
+        return redirect(url_for("achats.modifier", achat_id=achat.id))
+
+    motif = (request.form.get("motif") or "").strip()
+    if not motif:
+        flash("Un motif est obligatoire pour annuler un achat.", "error")
+        return redirect(url_for("achats.modifier", achat_id=achat.id))
+
+    if achat.type_achat == "stock" and achat.produit_id:
+        produit = db.session.get(Produit, achat.produit_id)
+        if produit is not None:
+            enregistrer_mouvement(
+                produit,
+                "sortie",
+                "correction",
+                achat.quantite,
+                current_user,
+                commentaire=f"Annulation achat #{achat.id}",
+                reference_type="achat",
+                reference_id=achat.id,
+            )
+
+    moyen = achat.moyen_paiement
+    crediter_compte(moyen.compte_financier, montant_depuis_ariary(moyen, achat.montant_total))
+
+    achat.is_annule = True
+    achat.annule_motif = motif
+    achat.annule_par_nom = current_user.full_name
+    achat.annule_le = utcnow()
+    db.session.commit()
+    log_audit(current_app, "achat_annule", f"Achat #{achat.id} — {motif}", current_user)
+    flash("Achat annulé : stock et compte financier ont été rétablis.", "info")
+    return redirect(url_for("achats.modifier", achat_id=achat.id))
 
 
 def _populate_choices_classement(form):

@@ -110,3 +110,38 @@ def test_appliquer_migrations_backfill_produits_et_corrections_une_seule_fois_sa
         db.session.refresh(profile)
         assert "produits" not in profile.permissions
         assert "corrections" not in profile.permissions
+
+
+def test_appliquer_migrations_backfill_vendeur_une_seule_fois(app, db):
+    """Le rôle Vendeur a désormais aussi accès aux achats, stocks, clients et
+    production (retour utilisateur) — backfillé une seule fois sur les bases
+    déjà en production, jamais réimposé si retiré ensuite (même principe que
+    le backfill produits/corrections du Responsable ci-dessus)."""
+    from app.db_migrations import appliquer_migrations
+    from app.models import MigrationFlag, Profile
+
+    with app.app_context():
+        MigrationFlag.query.filter(
+            MigrationFlag.key.in_(
+                ["vendeur_achats_v1", "vendeur_stocks_v1", "vendeur_clients_v1", "vendeur_production_v1"]
+            )
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+        profile = Profile(code="vendeur", name="Vendeur", icon="point_of_sale")
+        profile.permissions = ["point_de_vente", "caisse"]  # ancienne base
+        db.session.add(profile)
+        db.session.commit()
+
+        appliquer_migrations()
+        db.session.refresh(profile)
+        for droit in ("achats", "stocks", "clients", "production"):
+            assert droit in profile.permissions
+
+        # Retiré volontairement ensuite : jamais réimposé au redémarrage suivant.
+        profile.permissions = [p for p in profile.permissions if p != "stocks"]
+        db.session.commit()
+
+        appliquer_migrations()
+        db.session.refresh(profile)
+        assert "stocks" not in profile.permissions

@@ -151,10 +151,13 @@ def calculer_theorique(session: CaisseSession):
     # Achats (stock ou dépense) payés en espèces depuis cette même caisse
     # pendant la session — sans ça, le théorique restait surévalué et
     # provoquait un faux écart à la clôture dès qu'un achat était réglé
-    # en cash depuis le tiroir.
+    # en cash depuis le tiroir. Un achat annulé (achats/routes.py::annuler)
+    # recrédite déjà le compte séparément — sans ce filtre, il resterait
+    # compté ici en plus, faussant le théorique malgré la correction (même
+    # principe que le filtre statut="validee" sur les ventes ci-dessus).
     achats_especes = (
         db.session.query(db.func.coalesce(db.func.sum(Achat.montant_total), 0))
-        .filter(Achat.caisse_session_id == session.id)
+        .filter(Achat.caisse_session_id == session.id, Achat.is_annule.is_(False))
         .join(Achat.moyen_paiement)
         .filter(Achat.moyen_paiement.has(compte_financier_id=compte_id))
         .scalar()
@@ -180,10 +183,11 @@ def achats_de_la_session(session):
     tout ce qui a été dépensé pendant ce service, quel que soit le moyen."""
     fin = session.fermee_le or utcnow()
     return Achat.query.filter(
+        Achat.is_annule.is_(False),
         db.or_(
             Achat.caisse_session_id == session.id,
             db.and_(Achat.created_at >= session.ouverte_le, Achat.created_at <= fin),
-        )
+        ),
     ).all()
 
 

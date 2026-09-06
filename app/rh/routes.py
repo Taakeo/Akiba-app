@@ -1,11 +1,12 @@
 from datetime import date, datetime
 
-from flask import abort, flash, redirect, render_template, request, send_file, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user
 
+from ..admin.backup_service import log_audit
 from ..admin.import_excel import generer_modele_salaries_xlsx, importer_salaries_excel
 from ..auth.decorators import permission_required
-from ..caisse.services import debiter_compte, montant_depuis_ariary
+from ..caisse.services import crediter_compte, debiter_compte, montant_depuis_ariary
 from ..extensions import db
 from ..models import (
     Absence,
@@ -18,6 +19,7 @@ from ..models import (
     Salarie,
     verifier_suppression_salarie,
 )
+from ..models.finance import utcnow
 from . import bp
 from .forms import AbsenceForm, ImportSalariesForm, RemunerationForm, SalarieForm
 from .services import TYPES_SALAIRE, construire_fiche_paie
@@ -172,7 +174,9 @@ def fiche(salarie_id):
     absence_form = AbsenceForm()
 
     total_net = sum(
-        r.montant if r.type_remuneration != "retenue" else -r.montant for r in salarie.remunerations
+        r.montant if r.type_remuneration != "retenue" else -r.montant
+        for r in salarie.remunerations
+        if not r.is_annule
     )
 
     # Filtre "du ... au ..." sur les absences affichées, pour se concentrer
@@ -257,6 +261,40 @@ def ajouter_remuneration(salarie_id):
         flash("Formulaire invalide.", "error")
 
     return redirect(url_for("rh.fiche", salarie_id=salarie.id))
+
+
+@bp.route("/<int:salarie_id>/remuneration/<int:remuneration_id>/annuler", methods=["POST"])
+@permission_required("corrections")
+def annuler_remuneration(salarie_id, remuneration_id):
+    """Annule un versement déjà enregistré (droit "corrections") : recrédite
+    le compte débité à l'origine — jamais de suppression, motif obligatoire,
+    tracé (même principe que pos/services.py::annuler_vente). Contrairement à
+    Absence (rh.supprimer_absence, sans effet financier), une rémunération
+    débite un compte et n'avait jusqu'ici aucun moyen de correction."""
+    remuneration = db.session.get(RemunerationSalarie, remuneration_id)
+    if remuneration is None or remuneration.salarie_id != salarie_id:
+        abort(404)
+    if remuneration.is_annule:
+        flash("Ce versement est déjà annulé.", "error")
+        return redirect(url_for("rh.fiche", salarie_id=salarie_id))
+
+    motif = (request.form.get("motif") or "").strip()
+    if not motif:
+        flash("Un motif est obligatoire pour annuler un versement.", "error")
+        return redirect(url_for("rh.fiche", salarie_id=salarie_id))
+
+    if remuneration.moyen_paiement_id:
+        moyen = remuneration.moyen_paiement
+        crediter_compte(moyen.compte_financier, montant_depuis_ariary(moyen, remuneration.montant))
+
+    remuneration.is_annule = True
+    remuneration.annule_motif = motif
+    remuneration.annule_par_nom = current_user.full_name
+    remuneration.annule_le = utcnow()
+    db.session.commit()
+    log_audit(current_app, "remuneration_annulee", f"Rémunération #{remuneration.id} — {motif}", current_user)
+    flash("Versement annulé : le compte financier a été rétabli.", "info")
+    return redirect(url_for("rh.fiche", salarie_id=salarie_id))
 
 
 @bp.route("/<int:salarie_id>/remuneration/<int:remuneration_id>/fiche-paie")

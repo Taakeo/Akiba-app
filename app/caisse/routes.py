@@ -1,6 +1,7 @@
-from flask import flash, redirect, render_template, request, url_for
+from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..admin.backup_service import log_audit
 from ..auth.decorators import permission_required
 from ..extensions import db
 from ..models import (
@@ -9,6 +10,7 @@ from ..models import (
     CompteFinancier,
     MoyenPaiement,
     MouvementCaisse,
+    ParametresImprimante,
     TauxChange,
     Vente,
     moyen_paiement_par_defaut,
@@ -210,14 +212,56 @@ def fermeture():
                     "error",
                 )
             else:
-                debiter_compte(session.compte_financier, form.montant_preleve.data)
                 crediter_compte(compte_akiba, form.montant_preleve.data)
 
+        # Le solde du compte caisse physique est recalé exactement sur le
+        # contenu réel compté (moins ce qui vient d'en sortir) — jamais un
+        # simple débit du montant prélevé appliqué à un solde théorique. Sans
+        # ça, tout écart de clôture (erreur de rendu-monnaie, vol, oubli...)
+        # restait invisible sur le solde du compte, qui dérivait alors
+        # durablement de la réalité physique, séance après séance, jusqu'à
+        # devenir totalement décorrélé du contenu réel du tiroir (retour
+        # utilisateur : théorique de session à 47 000 Ar contre 4 000 Ar
+        # affichés dans Comptes). L'écart lui-même reste calculé et tracé
+        # comme avant (session.ecart) — seulement plus jamais ignoré.
+        solde_avant = session.compte_financier.solde
+        session.compte_financier.solde = form.fond_reel.data - form.montant_preleve.data
+
         db.session.commit()
+        log_audit(
+            current_app,
+            "cloture_caisse",
+            (
+                f"Session #{session.id} — écart {session.ecart} Ar — solde {session.compte_financier.name} "
+                f"recalé de {solde_avant} à {session.compte_financier.solde} Ar"
+            ),
+            current_user,
+        )
         flash("Caisse clôturée.", "info")
         return redirect(url_for("caisse.pdv"))
 
     return render_template("caisse/fermeture.html", form=form, session=session, resume=resume, compte_akiba=compte_akiba)
+
+
+@bp.route("/fermeture/ouvrir-tiroir", methods=["POST"])
+@permission_required("caisse")
+def fermeture_ouvrir_tiroir():
+    """Ouvre le tiroir-caisse physique depuis l'écran de clôture, pour compter
+    les espèces avant de valider — jusqu'ici le tiroir ne s'ouvrait qu'à
+    l'occasion d'un mouvement ou d'une vente, jamais pour préparer le compte
+    de fin de journée (retour utilisateur)."""
+    from .printer import ImprimanteError, ouvrir_tiroir
+
+    session = get_open_session()
+    if session is None:
+        flash("Aucune session de caisse ouverte.", "error")
+        return redirect(url_for("caisse.pdv"))
+    try:
+        ouvrir_tiroir(ParametresImprimante.get().nom_imprimante)
+        flash("Commande envoyée : le tiroir devrait s'ouvrir.", "info")
+    except ImprimanteError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("caisse.fermeture"))
 
 
 @bp.route("/mouvement", methods=["GET", "POST"])

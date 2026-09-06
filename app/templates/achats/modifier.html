@@ -7,7 +7,14 @@
   Achats
 </a>
 <div class="max-w-3xl flex flex-col gap-gutter">
-  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+  {% if achat.is_annule %}
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4 flex items-center gap-2">
+    <span class="material-symbols-outlined">cancel</span>
+    <span class="font-label-md text-label-md">Cet achat a été annulé{% if achat.annule_par_nom %} par {{ achat.annule_par_nom }}{% endif %}{% if achat.annule_motif %} — {{ achat.annule_motif }}{% endif %}.</span>
+  </div>
+  {% endif %}
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 {% if achat.is_annule %}opacity-60{% endif %}">
     {{ section_header("receipt_long", "Informations de l'achat") }}
     <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-4">
       Ces informations ne sont plus modifiables une fois l'achat enregistré (stock et caisse déjà mis à jour) — seul le classement comptable peut être corrigé ci-dessous.
@@ -82,6 +89,23 @@
     {{ actions("Enregistrer", url_for("achats.index")) }}
   </form>
   </div>
+
+  {% if current_user.profile.has_permission("corrections") and not achat.is_annule %}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("cancel", "Annuler cet achat") }}
+    <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-4">
+      Reverse le mouvement de stock (si achat de stock) et recrédite le compte débité — utile en cas d'erreur de saisie (mauvais montant, doublon...).
+    </p>
+    <form method="post" action="{{ url_for('achats.annuler', achat_id=achat.id) }}" onsubmit="return window.confirm('Annuler cet achat ? Le stock et le compte financier seront rétablis.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="motif" required placeholder="Motif de l'annulation (obligatoire)" class="w-full h-11 px-4 mb-2 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+      <button type="submit" class="w-full h-touch-target-min flex items-center justify-center gap-2 rounded-full border border-error text-error font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[20px]">cancel</span>
+        Annuler cet achat
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 
 <script id="categories-json" type="application/json">{{ categories_json | tojson }}</script>

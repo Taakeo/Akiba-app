@@ -423,3 +423,73 @@ def test_fiche_paie_impression_refuse_une_avance_isolee(client, login_admin, cat
 def test_fiche_paie_impression_requires_permission(client, login_seller, catalogue):
     response = client.get("/rh/1/remuneration/1/fiche-paie")
     assert response.status_code == 403
+
+
+# --- Correction administrateur : annulation d'un versement --------------------
+
+
+def test_annuler_remuneration_requiert_le_droit_corrections(client, login_seller, catalogue, db):
+    # Le Vendeur n'a ni "rh" ni "corrections" : la fiche est créée directement
+    # en base (la route /rh/nouveau lui serait de toute façon interdite).
+    from app.models import Salarie
+
+    salarie = Salarie(nom="Lala Rakoto")
+    db.session.add(salarie)
+    db.session.commit()
+
+    response = client.post(f"/rh/{salarie.id}/remuneration/1/annuler", data={"motif": "Erreur"})
+    assert response.status_code == 403
+
+
+def test_annuler_remuneration_recredite_le_compte(client, login_admin, catalogue, db):
+    client.post("/rh/nouveau", data={"nom": "Lala Rakoto", "poste_id": "0", "projet_id": "0"})
+    from app.models import CompteFinancier, RemunerationSalarie, Salarie
+
+    salarie = Salarie.query.filter_by(nom="Lala Rakoto").first()
+    _ajouter_remuneration(client, salarie.id, "salaire_mensuel", 300000, "2024-02-28", catalogue["moyen_paiement_id"])
+    remuneration = RemunerationSalarie.query.filter_by(salarie_id=salarie.id).first()
+    compte = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    assert compte.solde == -300000
+
+    response = client.post(
+        f"/rh/{salarie.id}/remuneration/{remuneration.id}/annuler", data={"motif": "Doublon"}
+    )
+    assert response.status_code == 302
+
+    db.session.refresh(compte)
+    db.session.refresh(remuneration)
+    assert compte.solde == 0  # rétabli
+    assert remuneration.is_annule is True
+
+
+def test_annuler_remuneration_non_versee_ne_touche_aucun_compte(client, login_admin, catalogue, db):
+    """Une ligne "non versée" (aucun moyen de paiement) n'a jamais débité de
+    compte à l'origine — l'annuler ne doit donc en créditer aucun."""
+    client.post("/rh/nouveau", data={"nom": "Lala Rakoto", "poste_id": "0", "projet_id": "0"})
+    from app.models import CompteFinancier, RemunerationSalarie, Salarie
+
+    salarie = Salarie.query.filter_by(nom="Lala Rakoto").first()
+    _ajouter_remuneration(client, salarie.id, "prime", 15000, "2024-02-10")  # pas de moyen_paiement_id
+    remuneration = RemunerationSalarie.query.filter_by(salarie_id=salarie.id).first()
+    compte = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    solde_avant = compte.solde
+
+    client.post(f"/rh/{salarie.id}/remuneration/{remuneration.id}/annuler", data={"motif": "Erreur de saisie"})
+
+    db.session.refresh(compte)
+    assert compte.solde == solde_avant
+
+
+def test_annuler_remuneration_exclue_du_solde_du(client, login_admin, catalogue, db):
+    client.post("/rh/nouveau", data={"nom": "Lala Rakoto", "poste_id": "0", "projet_id": "0"})
+    from app.models import RemunerationSalarie, Salarie
+
+    salarie = Salarie.query.filter_by(nom="Lala Rakoto").first()
+    _ajouter_remuneration(client, salarie.id, "prime", 15000, "2024-02-10")  # non versée -> augmente solde_du
+    remuneration = RemunerationSalarie.query.filter_by(salarie_id=salarie.id).first()
+    db.session.refresh(salarie)
+    assert salarie.solde_du == 15000
+
+    client.post(f"/rh/{salarie.id}/remuneration/{remuneration.id}/annuler", data={"motif": "Erreur"})
+    db.session.refresh(salarie)
+    assert salarie.solde_du == 0

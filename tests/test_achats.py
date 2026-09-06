@@ -401,3 +401,72 @@ def test_achat_origine_incoherente_avec_le_moyen_est_refusee(client, login_admin
     from app.models import Achat
 
     assert Achat.query.count() == 0
+
+
+# --- Correction administrateur : annulation d'un achat -----------------------
+
+
+def test_annuler_achat_requiert_le_droit_corrections(client, login_seller, catalogue, db):
+    from datetime import date
+
+    from app.models import Achat
+
+    achat = Achat(
+        type_achat="depense", date_achat=date(2024, 1, 15), poste_id=catalogue["poste_id"],
+        categorie_id=catalogue["categorie_id"], montant_total=1000,
+        moyen_paiement_id=catalogue["moyen_paiement_id"], created_by_name="Admin",
+    )
+    db.session.add(achat)
+    db.session.commit()
+
+    response = client.post(f"/achats/{achat.id}/annuler", data={"motif": "Erreur"})
+    assert response.status_code == 403
+
+
+def test_annuler_achat_de_stock_restaure_le_stock_et_le_compte(client, login_admin, catalogue, db):
+    client.post("/achats/nouveau", data=_achat_stock_payload(catalogue))
+
+    from app.models import Achat, CompteFinancier, Produit
+
+    achat = Achat.query.first()
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    compte = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    assert produit.stock_quantite == 15
+    assert compte.solde == -5000
+
+    response = client.post(f"/achats/{achat.id}/annuler", data={"motif": "Doublon"})
+    assert response.status_code == 302
+
+    db.session.refresh(produit)
+    db.session.refresh(compte)
+    db.session.refresh(achat)
+    assert produit.stock_quantite == 10  # rétabli
+    assert compte.solde == 0  # rétabli
+    assert achat.is_annule is True
+    assert achat.annule_motif == "Doublon"
+
+
+def test_annuler_achat_refuse_sans_motif(client, login_admin, catalogue, db):
+    client.post("/achats/nouveau", data=_achat_stock_payload(catalogue))
+    from app.models import Achat
+
+    achat = Achat.query.first()
+    response = client.post(f"/achats/{achat.id}/annuler", data={"motif": ""})
+    assert response.status_code == 302
+    db.session.refresh(achat)
+    assert achat.is_annule is False
+
+
+def test_annuler_achat_deja_annule_est_refuse(client, login_admin, catalogue, db):
+    client.post("/achats/nouveau", data=_achat_stock_payload(catalogue))
+    from app.models import Achat, Produit
+
+    achat = Achat.query.first()
+    client.post(f"/achats/{achat.id}/annuler", data={"motif": "Doublon"})
+
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    stock_apres_premiere_annulation = produit.stock_quantite
+
+    client.post(f"/achats/{achat.id}/annuler", data={"motif": "Encore"})
+    db.session.refresh(produit)
+    assert produit.stock_quantite == stock_apres_premiere_annulation  # pas rejoué deux fois

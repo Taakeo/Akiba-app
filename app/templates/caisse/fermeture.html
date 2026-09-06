@@ -32,10 +32,18 @@
     </div>
   </div>
 
+  <form id="ouvrir-tiroir-form" method="post" action="{{ url_for('caisse.fermeture_ouvrir_tiroir') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+
   <form method="post">
     {{ form.hidden_tag() }}
     <label class="block font-label-md text-label-md text-on-surface mb-1">Contenu réel compté <span class="text-error">*</span></label>
     <p class="font-body-md text-sm text-on-surface-variant mb-2">Comptez les espèces réellement présentes dans le tiroir et saisissez le total.</p>
+    <button type="submit" form="ouvrir-tiroir-form" class="inline-flex items-center gap-1 mb-3 font-label-md text-label-md text-primary">
+      <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+      Ouvrir le tiroir pour compter
+    </button>
     {{ form.fond_reel(id="fond-reel-input", class="w-full h-touch-target-min px-4 bg-surface border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-shadow text-on-surface font-body-lg text-body-lg mb-4 " ~ ("border-error" if form.fond_reel.errors else "border-outline-variant"), placeholder="0") }}
     {% for message in form.fond_reel.errors %}
     <p class="font-body-md text-sm text-error mb-4 flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">error</span>{{ message }}</p>

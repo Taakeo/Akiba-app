@@ -52,7 +52,7 @@
     <div id="bloc-stock" class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
       {{ section_header("inventory_2", "Article acheté") }}
       {{ field(form.produit_id, help="Choisi dans le catalogue Produits, pour que le stock soit mis à jour automatiquement.") }}
-      <a href="{{ url_for('admin.produit_nouveau') }}" target="_blank" class="inline-flex items-center gap-1 -mt-3 mb-4 font-label-md text-label-md text-primary">
+      <a href="{{ url_for('admin.produit_nouveau') }}" class="inline-flex items-center gap-1 -mt-3 mb-4 font-label-md text-label-md text-primary">
         <span class="material-symbols-outlined text-[18px]">add_circle</span>
         L'article n'existe pas encore ? Créer une fiche produit
       </a>

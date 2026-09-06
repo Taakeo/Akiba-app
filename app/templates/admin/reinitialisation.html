@@ -19,6 +19,11 @@
       <span class="material-symbols-outlined text-primary">check_circle</span>
       Conservé tel quel
     </h3>
+    <p class="font-body-md text-body-md text-on-surface mb-3 bg-tertiary-container/50 rounded-xl px-4 py-3">
+      Votre catalogue compte aujourd'hui <strong>{{ resume.nb_produits }} produit(s)</strong> pour un total de
+      <strong>{{ resume.total_articles_stock }} article(s) en stock</strong> — ces chiffres seront
+      <strong>strictement identiques</strong> juste après la réinitialisation. Rien ne bouge dans l'inventaire.
+    </p>
     <ul class="font-body-md text-body-md text-on-surface-variant list-disc list-inside space-y-1">
       <li>Catalogue produits, prix et stock actuels</li>
       <li>Comptes financiers, moyens de paiement, postes, catégories, projets</li>
@@ -33,11 +38,11 @@
       Effacé définitivement
     </h3>
     <ul class="font-body-md text-body-md text-on-error-container/90 list-disc list-inside space-y-1">
-      <li>Toutes les ventes, achats et ventes externes</li>
-      <li>Tout l'historique des mouvements de stock, d'inventaires et de fabrications</li>
-      <li>Toutes les sessions de caisse et mouvements de caisse</li>
+      <li>{{ resume.nb_ventes }} vente(s) comptoir, {{ resume.nb_achats }} achat(s), {{ resume.nb_ventes_externes }} vente(s) externe(s)</li>
+      <li>Tout l'historique des mouvements de stock, d'inventaires et de {{ resume.nb_fabrications }} fabrication(s)</li>
+      <li>{{ resume.nb_sessions_caisse }} session(s) de caisse et leurs mouvements</li>
       <li>Toutes les rémunérations et absences enregistrées</li>
-      <li>Les soldes des comptes financiers et des crédits clients sont remis à 0</li>
+      <li>Les soldes des comptes financiers et des crédits clients sont remis à 0 (l'argent réellement présent en caisse/en banque n'est pas modifié physiquement — seul le chiffre affiché repart de zéro)</li>
     </ul>
   </div>
 

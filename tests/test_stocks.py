@@ -94,3 +94,97 @@ def test_inventaire_general_cloture_applique_ecart(client, login_admin, catalogu
 
     db.session.refresh(inventaire)
     assert inventaire.statut == "cloture"
+
+
+# --- Export/réimport Excel de l'inventaire ------------------------------------
+
+
+def test_export_inventaire_route_requiert_permission(client, login_seller):
+    assert client.get("/stocks/export.xlsx").status_code == 403
+
+
+def test_export_inventaire_liste_le_produit_du_catalogue(client, login_admin, catalogue):
+    response = client.get("/stocks/export.xlsx")
+    assert response.status_code == 200
+
+    import io
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(response.data))
+    ws = wb.active
+    lignes = list(ws.iter_rows(min_row=2, values_only=True))
+    assert len(lignes) == 1
+    assert lignes[0][0] == catalogue["produit_id"]
+    assert lignes[0][1] == "Tablette Chocolat 70%"
+    assert lignes[0][5] == 10  # stock actuel
+
+
+def _workbook_inventaire_bytes(rows):
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["ID", "Nom du produit", "Poste", "Catégorie", "Unité", "Stock actuel", "Seuil d'alerte", "Code-barres"])
+    for row in rows:
+        ws.append(row)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def test_importer_inventaire_corrige_le_stock_et_trace_le_mouvement(app, db, catalogue):
+    from app.admin.import_excel import importer_inventaire_excel
+    from app.models import MouvementStock, Produit, SubProfile
+
+    with app.app_context():
+        from app.models import Profile
+
+        profile = Profile(code="administrateur", name="Administrateur", icon="shield_person")
+        profile.permissions = ["*"]
+        db.session.add(profile)
+        db.session.commit()
+        current_user = SubProfile(profile_id=profile.id, full_name="Admin")
+        current_user.set_pin("9999")
+        db.session.add(current_user)
+        db.session.commit()
+
+        fichier = _workbook_inventaire_bytes(
+            [[catalogue["produit_id"], "Tablette Chocolat 70%", "Boutique", "Boutique", "unité", 7, 2, ""]]
+        )
+        resultat = importer_inventaire_excel(fichier, current_user)
+
+        assert len(resultat["maj"]) == 1
+        assert resultat["erreurs"] == []
+
+        produit = db.session.get(Produit, catalogue["produit_id"])
+        assert produit.stock_quantite == 7  # 10 -> 7
+
+        mouvement = MouvementStock.query.filter_by(produit_id=produit.id, motif="correction").first()
+        assert mouvement is not None
+        assert mouvement.type_mouvement == "sortie"
+        assert mouvement.quantite == 3
+
+
+def test_importer_inventaire_id_inconnu_est_une_erreur(app, db, catalogue):
+    from app.admin.import_excel import importer_inventaire_excel
+    from app.models import Profile, SubProfile
+
+    with app.app_context():
+        profile = Profile(code="administrateur", name="Administrateur", icon="shield_person")
+        profile.permissions = ["*"]
+        db.session.add(profile)
+        db.session.commit()
+        current_user = SubProfile(profile_id=profile.id, full_name="Admin")
+        current_user.set_pin("9999")
+        db.session.add(current_user)
+        db.session.commit()
+
+        fichier = _workbook_inventaire_bytes([[999999, "Inconnu", "Boutique", "Boutique", "unité", 5, "", ""]])
+        resultat = importer_inventaire_excel(fichier, current_user)
+
+        assert resultat["maj"] == []
+        assert len(resultat["erreurs"]) == 1

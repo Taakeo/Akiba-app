@@ -38,7 +38,7 @@ PERMISSIONS_DISPONIBLES = [
     ("clients", "Clients", "person"),
     ("rapports", "Rapports", "bar_chart"),
     ("admin", "Administration (paramétrage, y compris cet écran)", "admin_panel_settings"),
-    ("corrections", "Corrections & annulations (ventes)", "restore"),
+    ("corrections", "Corrections & annulations (ventes, achats, production, ventes externes, RH)", "restore"),
     # Droit étroit, distinct de "admin" : seulement les fiches produit
     # (création, modification, archivage, import) — pas le reste du panneau
     # Administration (comptes, utilisateurs, sauvegardes...). Sert au
@@ -79,7 +79,7 @@ DEFAULT_PROFILES = [
         "code": "vendeur",
         "name": "Vendeur",
         "icon": "point_of_sale",
-        "permissions": ["point_de_vente", "caisse"],
+        "permissions": ["point_de_vente", "caisse", "achats", "stocks", "clients", "production"],
     },
     {
         "code": "comptable",

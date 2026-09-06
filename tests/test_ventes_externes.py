@@ -153,3 +153,76 @@ def test_vente_externe_formulaire_exclut_le_moyen_du_pdv(client, login_admin, ca
     assert "Espèces Ariary — Caisse Ariary".encode() not in response.data
     # ...contrairement à un moyen rattaché à un autre compte.
     assert "Espèces — Compte Akiba".encode() in response.data
+
+
+# --- Correction administrateur : annulation d'une vente externe --------------
+
+
+def test_annuler_vente_externe_requiert_le_droit_corrections(client, login_seller, catalogue, db):
+    from datetime import date
+
+    moyen_id, _ = _ajouter_moyen_non_pdv(db)
+    from app.models import VenteExterne
+
+    vente_externe = VenteExterne(
+        client_nom="Jean", date_vente=date(2024, 1, 15), poste_id=catalogue["poste_id"],
+        categorie_id=catalogue["categorie_id"], montant_total=15000,
+        moyen_paiement_id=moyen_id, created_by_name="Admin",
+    )
+    db.session.add(vente_externe)
+    db.session.commit()
+
+    response = client.post(f"/ventes-externes/{vente_externe.id}/annuler", data={"motif": "Erreur"})
+    assert response.status_code == 403
+
+
+def test_annuler_vente_externe_produit_catalogue_restaure_le_stock_et_le_compte(client, login_admin, catalogue, db):
+    moyen_id, compte_id = _ajouter_moyen_non_pdv(db)
+    payload = {
+        "client_id": "0",
+        "client_nom": "Ferme locale",
+        "date_vente": "2024-01-15",
+        "poste_id": str(catalogue["poste_id"]),
+        "projet_id": "0",
+        "categorie_id": str(catalogue["categorie_id"]),
+        "sous_categorie_id": "0",
+        "produit_id": str(catalogue["produit_id"]),
+        "quantite": "3",
+        "prix_unitaire": "2000",
+        "moyen_paiement_id": str(moyen_id),
+    }
+    client.post("/ventes-externes/nouveau", data=payload)
+
+    from app.models import CompteFinancier, Produit, VenteExterne
+
+    vente_externe = VenteExterne.query.first()
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    compte = db.session.get(CompteFinancier, compte_id)
+    assert produit.stock_quantite == 7
+    assert compte.solde == 6000
+
+    response = client.post(f"/ventes-externes/{vente_externe.id}/annuler", data={"motif": "Doublon"})
+    assert response.status_code == 302
+
+    db.session.refresh(produit)
+    db.session.refresh(compte)
+    db.session.refresh(vente_externe)
+    assert produit.stock_quantite == 10  # rétabli
+    assert compte.solde == 0  # rétabli
+    assert vente_externe.is_annule is True
+
+
+def test_annuler_vente_externe_deja_annulee_est_refuse(client, login_admin, catalogue, db):
+    moyen_id, compte_id = _ajouter_moyen_non_pdv(db)
+    client.post("/ventes-externes/nouveau", data=_payload_libre(catalogue, moyen_id))
+
+    from app.models import CompteFinancier, VenteExterne
+
+    vente_externe = VenteExterne.query.first()
+    client.post(f"/ventes-externes/{vente_externe.id}/annuler", data={"motif": "Doublon"})
+    compte = db.session.get(CompteFinancier, compte_id)
+    solde_apres_premiere_annulation = compte.solde
+
+    client.post(f"/ventes-externes/{vente_externe.id}/annuler", data={"motif": "Encore"})
+    db.session.refresh(compte)
+    assert compte.solde == solde_apres_premiere_annulation

@@ -112,10 +112,11 @@
     </div>
     <div class="max-h-[28rem] overflow-y-auto">
       {% for r in salarie.remunerations %}
-      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+      <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if r.is_annule %}opacity-50{% endif %}">
         <div>
           <p class="font-body-md text-body-md text-on-surface">
             {{ dict([("salaire_mensuel","Salaire mensuel"),("salaire_hebdomadaire","Salaire hebdomadaire"),("remuneration_journaliere","Rémunération journalière"),("avance","Avance"),("prime","Prime"),("retenue","Retenue")])[r.type_remuneration] }}
+            {% if r.is_annule %}<span class="text-error text-xs font-bold">(annulé{% if r.annule_motif %} — {{ r.annule_motif }}{% endif %})</span>{% endif %}
           </p>
           <p class="font-body-md text-xs text-on-surface-variant mt-1">
             {{ r.date_versement.strftime('%d/%m/%Y') }}
@@ -131,6 +132,11 @@
           <a href="{{ url_for('rh.fiche_paie', salarie_id=salarie.id, remuneration_id=r.id) }}" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-variant flex-shrink-0" title="Imprimer la fiche de paie">
             <span class="material-symbols-outlined text-[18px]">print</span>
           </a>
+          {% endif %}
+          {% if current_user.profile.has_permission("corrections") and not r.is_annule %}
+          <button type="button" class="w-9 h-9 flex items-center justify-center rounded-full text-error hover:bg-error-container flex-shrink-0 annuler-remuneration-btn" title="Annuler ce versement" data-url="{{ url_for('rh.annuler_remuneration', salarie_id=salarie.id, remuneration_id=r.id) }}">
+            <span class="material-symbols-outlined text-[18px]">cancel</span>
+          </button>
           {% endif %}
         </div>
       </div>
@@ -202,4 +208,24 @@
     });
   })();
 </script>
+
+{% if current_user.profile.has_permission("corrections") %}
+<form id="annuler-remuneration-form" method="post" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="motif" id="annuler-remuneration-motif">
+</form>
+<script>
+  document.querySelectorAll(".annuler-remuneration-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const motif = window.prompt("Motif de l'annulation (obligatoire) ?");
+      if (!motif || !motif.trim()) return;
+      if (!window.confirm("Annuler ce versement ? Le compte financier sera rétabli.")) return;
+      const form = document.getElementById("annuler-remuneration-form");
+      form.action = btn.dataset.url;
+      document.getElementById("annuler-remuneration-motif").value = motif.trim();
+      form.submit();
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

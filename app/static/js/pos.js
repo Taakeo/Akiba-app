@@ -415,8 +415,12 @@
       card.appendChild(btn);
 
       // Raccourci fiche produit — présent seulement si le serveur l'a fourni
-      // (droit "admin" côté utilisateur connecté, app/pos/routes.py). Ouvert
-      // dans un nouvel onglet pour ne jamais perdre le ticket en cours.
+      // (droit "produits" côté utilisateur connecté, app/pos/routes.py).
+      // Navigation dans la même fenêtre (jamais window.open : l'appli
+      // tourne dans une seule fenêtre native pywebview, "_blank" y ouvrirait
+      // le navigateur du système — retour utilisateur, très perturbant). Le
+      // ticket en cours ne se perd pas : il est déjà sauvegardé côté serveur
+      // (TicketAttente) et se recharge automatiquement au retour.
       if (p.editUrl) {
         const editBtn = document.createElement("button");
         editBtn.type = "button";
@@ -426,7 +430,7 @@
         editBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">edit</span>`;
         editBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          window.open(p.editUrl, "_blank");
+          window.location.href = p.editUrl;
         });
         card.appendChild(editBtn);
       }
@@ -512,7 +516,7 @@
             <button data-action="dec" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-l-full text-on-surface-variant active:bg-outline-variant/30">
               <span class="material-symbols-outlined">remove</span>
             </button>
-            <span class="w-10 text-center font-label-md text-body-md">${line.quantite}</span>
+            <button type="button" data-action="qty" class="w-10 text-center font-label-md text-body-md" title="Saisir une quantité">${line.quantite}</button>
             <button data-action="inc" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-r-full text-on-surface-variant active:bg-outline-variant/30">
               <span class="material-symbols-outlined">add</span>
             </button>
@@ -537,6 +541,20 @@
       li.querySelector('[data-action="dec"]').addEventListener("click", () => {
         line.quantite -= 1;
         if (line.quantite <= 0) ticket.cart.splice(index, 1);
+        renderCart();
+      });
+      li.querySelector('[data-action="qty"]').addEventListener("click", () => {
+        // Saisie directe de la quantité (clavier tactile numérique) : évite
+        // de devoir cliquer "+" des dizaines de fois pour une grosse
+        // quantité (ex. 100 gousses de vanille) — retour utilisateur.
+        const saisie = window.prompt(`Quantité pour "${line.name}" ?`, String(line.quantite));
+        if (saisie === null) return;
+        const valeur = parseInt(saisie, 10);
+        if (!Number.isFinite(valeur) || valeur <= 0) {
+          ticket.cart.splice(index, 1);
+        } else {
+          line.quantite = valeur;
+        }
         renderCart();
       });
       li.querySelector('[data-action="remise"]').addEventListener("click", () => {

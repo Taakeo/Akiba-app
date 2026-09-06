@@ -14,13 +14,13 @@
 
 <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
   {% for item in items %}
-  <div class="flex items-center justify-between gap-3 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+  <div class="flex items-center justify-between gap-3 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_annule %}opacity-50{% endif %}">
     <div class="flex items-center gap-4 min-w-0">
       <div class="w-11 h-11 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined">factory</span>
       </div>
       <div class="min-w-0">
-        <p class="font-label-md text-label-md text-on-surface">{{ item.quantite }} × {{ item.produit.name }}</p>
+        <p class="font-label-md text-label-md text-on-surface">{{ item.quantite }} × {{ item.produit.name }} {% if item.is_annule %}<span class="text-error text-xs font-bold">(annulée)</span>{% endif %}</p>
         <p class="font-body-md text-xs text-on-surface-variant mt-1">
           {{ item.date_fabrication.strftime('%d/%m/%Y') }} · Responsable : {{ item.responsable_nom }}
           {% if item.numero_lot %} · Lot {{ item.numero_lot }}{% endif %}

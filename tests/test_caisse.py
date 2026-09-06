@@ -621,7 +621,49 @@ def test_fermeture_credite_compte_akiba_du_montant_preleve(client, login_admin, 
     from app.models import CompteFinancier as CF
 
     caisse = _db.session.get(CF, catalogue["caisse_id"])
-    assert caisse.solde == -7000  # débité de ce qui a rejoint le Compte Akiba
+    # Le solde de la caisse physique est recalé sur le contenu réel compté
+    # moins ce qui en est sorti (10 000 - 7 000), jamais un simple débit
+    # appliqué à un solde théorique potentiellement déjà dérivé — voir
+    # app/caisse/routes.py::fermeture (correctif "écart caisse").
+    assert caisse.solde == 3000
+
+
+def test_fermeture_corrige_un_solde_deja_derive_de_la_realite(client, login_admin, catalogue, db):
+    """Reproduit le bug remonté par l'utilisateur (théorique de session à
+    47 000 Ar contre 4 000 Ar affichés dans Comptes) : un solde déjà dérivé
+    (ex. par un ancien écart jamais reporté) doit être ramené à la réalité
+    physique dès la clôture suivante, indépendamment de sa valeur de départ."""
+    from app.extensions import db as _db
+    from app.models import CompteFinancier as CF
+
+    caisse = _db.session.get(CF, catalogue["caisse_id"])
+    caisse.solde = 4000  # solde déjà décorrélé de la réalité (drift historique)
+    db.session.commit()
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "43000"})
+    response = client.post(
+        "/caisse/fermeture", data={"fond_reel": "47000", "montant_preleve": "0", "commentaire": ""}
+    )
+    assert response.status_code == 302
+
+    db.session.refresh(caisse)
+    assert caisse.solde == 47000  # recalé sur le comptage réel, plus aucune trace du drift
+
+
+def test_fermeture_ouvrir_tiroir_appelle_limpression(client, login_admin, catalogue, monkeypatch):
+    appels = []
+    monkeypatch.setattr("app.caisse.printer.ouvrir_tiroir", lambda nom: appels.append(nom))
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/caisse/fermeture/ouvrir-tiroir", follow_redirects=True)
+    assert response.status_code == 200
+    assert appels == ["POS-80"]
+
+
+def test_fermeture_ouvrir_tiroir_sans_session_ouverte(client, login_admin):
+    response = client.post("/caisse/fermeture/ouvrir-tiroir", follow_redirects=True)
+    assert response.status_code == 200
+    assert "Aucune session".encode() in response.data
 
 
 def test_fermeture_montant_preleve_superieur_au_reel_est_refuse(client, login_admin, catalogue, db):

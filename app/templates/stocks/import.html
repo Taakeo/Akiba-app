@@ -1,0 +1,79 @@
+{% extends "_app_shell.html" %}
+{% from "_form_macros.html" import field, section_header %}
+{% block title %}AKIBA APP - Réimport inventaire{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('stocks.index') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Stocks
+</a>
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Réimport inventaire</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Corrigez le stock de plusieurs produits d'un coup après un inventaire physique, en repartant du fichier exporté.</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter max-w-4xl">
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("download", "1. Exporter l'inventaire actuel") }}
+    <p class="font-body-md text-body-md text-on-surface-variant mb-4">
+      Téléchargez le fichier, corrigez la colonne « Stock actuel » avec les quantités réellement comptées, sans toucher aux autres colonnes (la colonne ID sert à retrouver la fiche exacte au réimport).
+    </p>
+    <a href="{{ url_for('stocks.export_xlsx') }}" class="inline-flex items-center justify-center gap-2 h-touch-target-min px-6 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-[20px]">download</span>
+      Télécharger inventaire_akiba.xlsx
+    </a>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
+    {{ section_header("upload_file", "2. Réimporter le fichier corrigé") }}
+    <form method="post" enctype="multipart/form-data">
+      {{ form.hidden_tag() }}
+      {{ field(form.fichier, help="Seule la colonne « Stock actuel » est prise en compte. Chaque écart génère un mouvement de correction tracé.") }}
+      <button type="submit" class="w-full h-touch-target-min bg-primary text-on-primary rounded-full font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors shadow-sm flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[20px]">playlist_add_check</span>
+        Réimporter
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if resultat %}
+<div class="max-w-4xl mt-gutter flex flex-col gap-4">
+  {% if resultat.maj %}
+  <div class="bg-tertiary-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-tertiary-container mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">check_circle</span>
+      {{ resultat.maj|length }} produit(s) mis à jour
+    </p>
+    <ul class="font-body-md text-sm text-on-tertiary-container/80 list-disc list-inside">
+      {% for ligne, message in resultat.maj %}
+      <li>Ligne {{ ligne }} — {{ message }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if resultat.inchanges %}
+  <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-surface mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">info</span>
+      {{ resultat.inchanges|length }} ligne(s) sans changement
+    </p>
+  </div>
+  {% endif %}
+
+  {% if resultat.erreurs %}
+  <div class="bg-error-container rounded-2xl p-5 border border-outline-variant/30">
+    <p class="font-label-md text-label-md text-on-error-container mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px]">error</span>
+      {{ resultat.erreurs|length }} ligne(s) en erreur, ignorée(s)
+    </p>
+    <ul class="font-body-md text-sm text-on-error-container/80 list-disc list-inside">
+      {% for ligne, message in resultat.erreurs %}
+      <li>Ligne {{ ligne }} — {{ message }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

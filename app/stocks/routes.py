@@ -1,6 +1,7 @@
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import abort, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user
 
+from ..admin.import_excel import exporter_inventaire_xlsx, importer_inventaire_excel
 from ..auth.decorators import permission_required
 from ..extensions import db
 from ..models import (
@@ -13,7 +14,7 @@ from ..models import (
     enregistrer_mouvement,
 )
 from . import bp
-from .forms import AjustementForm, InventaireForm
+from .forms import AjustementForm, ImportInventaireForm, InventaireForm
 
 
 @bp.route("/")
@@ -34,6 +35,33 @@ def index():
         categories=categories,
         postes=postes,
     )
+
+
+@bp.route("/export.xlsx")
+@permission_required("stocks")
+def export_xlsx():
+    buffer = exporter_inventaire_xlsx()
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name="inventaire_akiba.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@bp.route("/import", methods=["GET", "POST"])
+@permission_required("stocks")
+def import_inventaire():
+    form = ImportInventaireForm()
+    resultat = None
+    if form.validate_on_submit():
+        resultat = importer_inventaire_excel(form.fichier.data, current_user)
+        if resultat["maj"]:
+            flash(f"{len(resultat['maj'])} produit(s) mis à jour.", "info")
+        if not resultat["maj"] and not resultat["erreurs"]:
+            flash("Aucun écart à appliquer dans ce fichier.", "info")
+
+    return render_template("stocks/import.html", form=form, resultat=resultat)
 
 
 @bp.route("/mouvements")

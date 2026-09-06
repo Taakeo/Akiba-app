@@ -27,7 +27,19 @@ from ..models import (
     SousCategorie,
     TYPES_CONTRAT,
     TypeTarif,
+    enregistrer_mouvement,
 )
+
+ENTETES_INVENTAIRE = [
+    "ID",
+    "Nom du produit",
+    "Poste",
+    "Catégorie",
+    "Unité",
+    "Stock actuel",
+    "Seuil d'alerte",
+    "Code-barres",
+]
 
 ENTETES_PRODUITS = [
     "Nom du produit",
@@ -107,6 +119,112 @@ def generer_modele_xlsx():
 def generer_modele_salaries_xlsx():
     """Classeur vierge (en-têtes + une ligne d'exemple) pour l'import de salariés."""
     return _generer_modele("Salariés", ENTETES_SALARIES, EXEMPLE_SALARIE)
+
+
+def exporter_inventaire_xlsx():
+    """Classeur listant le stock actuel de tous les produits non archivés —
+    à récupérer pour un inventaire physique, corriger la colonne "Stock
+    actuel" à la main, puis réimporter via importer_inventaire_excel()
+    (retour utilisateur : le stock papier/réel prend souvent de l'avance sur
+    l'inventaire saisi dans l'appli). La colonne ID sert uniquement à
+    retrouver la fiche exacte au réimport — ne pas la modifier ni la remplir
+    pour une ligne ajoutée à la main (une ligne sans ID valide est ignorée)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Inventaire"
+    ws.append(ENTETES_INVENTAIRE)
+    for col_idx in range(1, len(ENTETES_INVENTAIRE) + 1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = 24
+
+    produits = (
+        Produit.query.filter_by(is_archived=False)
+        .order_by(Produit.name)
+        .all()
+    )
+    for p in produits:
+        ws.append(
+            [
+                p.id,
+                p.name,
+                p.poste.name if p.poste else "",
+                p.categorie.name if p.categorie else "",
+                p.unite,
+                "illimité" if p.stock_illimite else p.stock_quantite,
+                p.seuil_alerte if p.seuil_alerte is not None else "",
+                p.code_barres or "",
+            ]
+        )
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def importer_inventaire_excel(fichier, current_user):
+    """Réimporte la colonne "Stock actuel" d'un classeur généré par
+    exporter_inventaire_xlsx() (éventuellement corrigé à la main) : seul le
+    stock est mis à jour, jamais le nom/prix/classement d'un produit — ce
+    réimport sert uniquement à corriger un inventaire, pas à modifier des
+    fiches (utiliser l'import Produits pour ça). Chaque écart génère un
+    mouvement de stock "correction", tracé comme n'importe quel ajustement
+    manuel. Retourne {"maj": [...], "inchanges": [...], "erreurs": [(ligne, message)]}."""
+    try:
+        wb = load_workbook(fichier, data_only=True)
+    except Exception as exc:  # noqa: BLE001 - message utilisateur, pas une trace
+        return {"maj": [], "inchanges": [], "erreurs": [(0, f"Fichier illisible : {exc}")]}
+
+    ws = wb.active
+    resultat = {"maj": [], "inchanges": [], "erreurs": []}
+
+    lignes = list(ws.iter_rows(min_row=2, values_only=True))
+    for i, ligne in enumerate(lignes, start=2):
+        if ligne is None or all(c is None or str(c).strip() == "" for c in ligne):
+            continue  # ligne vide : ignorée silencieusement, pas une erreur
+
+        valeurs = list(ligne) + [None] * (len(ENTETES_INVENTAIRE) - len(ligne))
+        produit_id = _entier(valeurs[0])
+        nom = _valeur(valeurs[1])
+        nouveau_stock = _entier(valeurs[5])
+
+        if produit_id is None or produit_id == "invalide":
+            resultat["erreurs"].append((i, "ID de produit manquant ou invalide — utilisez le fichier exporté tel quel."))
+            continue
+
+        produit = db.session.get(Produit, produit_id)
+        if produit is None or produit.is_archived:
+            resultat["erreurs"].append((i, f"Produit #{produit_id} (« {nom} ») introuvable ou archivé."))
+            continue
+
+        if produit.stock_illimite:
+            resultat["inchanges"].append((i, f"« {produit.name} » : stock illimité, ignoré."))
+            continue
+
+        if nouveau_stock == "invalide" or nouveau_stock is None or nouveau_stock < 0:
+            resultat["erreurs"].append((i, f"« Stock actuel » invalide pour « {produit.name} »."))
+            continue
+
+        ecart = nouveau_stock - produit.stock_quantite
+        if ecart == 0:
+            resultat["inchanges"].append((i, produit.name))
+            continue
+
+        enregistrer_mouvement(
+            produit,
+            "entree" if ecart > 0 else "sortie",
+            "correction",
+            abs(ecart),
+            current_user,
+            commentaire="Réimport inventaire Excel",
+        )
+        resultat["maj"].append((i, f"{produit.name} : {produit.stock_quantite - ecart} → {produit.stock_quantite}"))
+
+    if resultat["maj"]:
+        db.session.commit()
+    else:
+        db.session.rollback()
+
+    return resultat
 
 
 def _valeur(cell):

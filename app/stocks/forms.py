@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import IntegerField, RadioField, SelectField, StringField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional
 
@@ -24,6 +25,16 @@ class AjustementForm(FlaskForm):
     motif_sortie = SelectField("Motif", choices=MOTIFS_SORTIE_MANUELS, validators=[Optional()])
     quantite = IntegerField("Quantité", validators=[InputRequired(), NumberRange(min=1)])
     commentaire = StringField("Commentaire", validators=[Optional()])
+
+
+class ImportInventaireForm(FlaskForm):
+    fichier = FileField(
+        "Fichier Excel",
+        validators=[
+            FileRequired("Choisissez le fichier .xlsx exporté puis corrigé."),
+            FileAllowed(["xlsx"], "Formats accepté : XLSX (le fichier exporté depuis cette page)."),
+        ],
+    )
 
 
 class InventaireForm(FlaskForm):

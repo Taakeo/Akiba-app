@@ -27,7 +27,7 @@ def construire_fiche_paie(remuneration):
     # récapitulatif. Départage par id si deux lignes partagent la même date.
     precedente = None
     for r in salarie.remunerations:
-        if r.id == remuneration.id or r.type_remuneration not in TYPES_SALAIRE:
+        if r.id == remuneration.id or r.type_remuneration not in TYPES_SALAIRE or r.is_annule:
             continue
         if (r.date_versement, r.id) >= (remuneration.date_versement, remuneration.id):
             continue
@@ -40,6 +40,7 @@ def construire_fiche_paie(remuneration):
         r
         for r in salarie.remunerations
         if r.id != remuneration.id
+        and not r.is_annule
         and r.type_remuneration in ("prime", "avance", "retenue")
         and r.date_versement <= remuneration.date_versement
         and (borne_inf is None or r.date_versement > borne_inf)

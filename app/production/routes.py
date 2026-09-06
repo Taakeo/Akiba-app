@@ -1,9 +1,11 @@
-from flask import abort, flash, redirect, render_template, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..admin.backup_service import log_audit
 from ..auth.decorators import permission_required
 from ..extensions import db
 from ..models import Fabrication, Produit, enregistrer_mouvement
+from ..models.finance import utcnow
 from . import bp
 from .forms import FabricationForm, FabricationModifierForm
 
@@ -154,3 +156,54 @@ def modifier(fabrication_id):
         return redirect(url_for("production.index"))
 
     return render_template("production/modifier.html", form=form, fabrication=fabrication)
+
+
+@bp.route("/<int:fabrication_id>/annuler", methods=["POST"])
+@permission_required("corrections")
+def annuler(fabrication_id):
+    """Annule une fabrication déjà enregistrée (droit "corrections") : retire
+    du stock le produit fini qu'elle avait ajouté et restitue l'emballage
+    consommé — jamais de suppression, motif obligatoire, tracé (même principe
+    que pos/services.py::annuler_vente)."""
+    fabrication = db.session.get(Fabrication, fabrication_id)
+    if fabrication is None:
+        abort(404)
+    if fabrication.is_annule:
+        flash("Cette fabrication est déjà annulée.", "error")
+        return redirect(url_for("production.index"))
+
+    motif = (request.form.get("motif") or "").strip()
+    if not motif:
+        flash("Un motif est obligatoire pour annuler une fabrication.", "error")
+        return redirect(url_for("production.index"))
+
+    enregistrer_mouvement(
+        fabrication.produit,
+        "sortie",
+        "correction",
+        fabrication.quantite,
+        current_user,
+        commentaire=f"Annulation fabrication #{fabrication.id}",
+        reference_type="fabrication",
+        reference_id=fabrication.id,
+    )
+    if fabrication.packaging_produit_id and fabrication.quantite_packaging:
+        enregistrer_mouvement(
+            fabrication.packaging_produit,
+            "entree",
+            "correction",
+            fabrication.quantite_packaging,
+            current_user,
+            commentaire=f"Annulation fabrication #{fabrication.id} — emballage",
+            reference_type="fabrication",
+            reference_id=fabrication.id,
+        )
+
+    fabrication.is_annule = True
+    fabrication.annule_motif = motif
+    fabrication.annule_par_nom = current_user.full_name
+    fabrication.annule_le = utcnow()
+    db.session.commit()
+    log_audit(current_app, "fabrication_annulee", f"Fabrication #{fabrication.id} — {motif}", current_user)
+    flash("Fabrication annulée : stock rétabli.", "info")
+    return redirect(url_for("production.index"))

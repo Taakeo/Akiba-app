@@ -52,6 +52,30 @@ def test_pos_index_expose_editurl_pour_administrateur(client, login_admin, catal
     response = client.get("/pos/")
     assert response.status_code == 200
     assert f'/admin/produits/{catalogue["produit_id"]}/modifier'.encode() in response.data
+    # Navigation dans la même fenêtre (jamais window.open/_blank, retour
+    # utilisateur : rien ne doit ouvrir un navigateur dans l'appli) : le lien
+    # porte depuis=pdv pour que "Retour" et l'enregistrement ramènent au PDV.
+    assert b"depuis=pdv" in response.data
+
+
+def test_produit_modifier_depuis_pdv_ramene_au_pdv_apres_enregistrement(client, login_admin, catalogue):
+    response = client.post(
+        f"/admin/produits/{catalogue['produit_id']}/modifier?depuis=pdv",
+        data={
+            "name": "Tablette Chocolat 70% (v2)",
+            "poste_id": str(catalogue["poste_id"]),
+            "categorie_id": str(catalogue["categorie_id"]),
+            "sous_categorie_id": "0",
+            "projet_id": "0",
+            "fournisseur_principal_id": "0",
+            "packaging_produit_id": "0",
+            "unite": "unité",
+            "stock_quantite": "10",
+            "depuis": "pdv",
+        },
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/pos/"
 
 
 def test_droit_produits_donne_acces_a_la_fiche_sans_ouvrir_tout_admin(client, app, db, catalogue):
@@ -166,18 +190,22 @@ def test_recu_sans_fresh_ne_montre_pas_le_popup(client, login_seller, catalogue)
     assert "Client suivant".encode() not in receipt.data
 
 
-def test_checkout_rejects_insufficient_stock(client, login_seller, catalogue):
+def test_checkout_autorise_la_vente_malgre_un_stock_insuffisant(client, login_seller, catalogue):
+    """Retour utilisateur : un stock affiché à 0/insuffisant ne doit plus
+    jamais bloquer une vente (inventaire pas à jour, pas une raison de
+    refuser un client au comptoir) — mais le stock ne doit jamais devenir
+    négatif pour autant (clampé à 0)."""
     client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
 
     response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=99, montant=99 * 8000))
-    assert response.status_code == 400
-    assert "Stock insuffisant" in response.get_json()["error"]
+    assert response.status_code == 200
+    assert response.get_json()["ok"] is True
 
     from app.extensions import db
     from app.models import Produit
 
     produit = db.session.get(Produit, catalogue["produit_id"])
-    assert produit.stock_quantite == 10  # inchangé
+    assert produit.stock_quantite == 0  # jamais négatif, malgré 99 vendus pour 10 en stock
 
 
 def test_checkout_rejects_payment_mismatch(client, login_seller, catalogue):
@@ -353,8 +381,12 @@ def test_paiement_en_euros_credite_le_compte_dans_sa_devise(client, login_seller
     assert compte_euro.solde == 2  # bien 2 €, pas 8000
 
 
-def test_paiement_en_euros_insuffisant_est_refuse(client, login_seller, catalogue, db):
-    # 1 € à 4000 Ar/€ = 4000 Ar, insuffisant pour un ticket à 8000 Ar.
+def test_paiement_en_euros_ignore_le_taux_de_change(client, login_seller, catalogue, db):
+    """Retour utilisateur : un paiement en euros ne doit plus jamais être
+    comparé/bloqué par le taux de change — le montant saisi est manuel et
+    définitif, même très inférieur à l'équivalent théorique (ici 1 € à
+    4000 Ar/€ = 4000 Ar, pour un ticket à 8000 Ar : la vente doit quand même
+    passer, réglée intégralement par ce seul paiement)."""
     _, moyen_euro = _creer_moyen_euro(db, taux=4000)
 
     client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
@@ -364,8 +396,13 @@ def test_paiement_en_euros_insuffisant_est_refuse(client, login_seller, catalogu
         "paiements": [{"moyen_paiement_id": moyen_euro.id, "montant": 1}],
     }
     response = client.post("/pos/vente", json=payload)
-    assert response.status_code == 400
-    assert "ne correspond pas" in response.get_json()["error"]
+    assert response.status_code == 200
+    assert response.get_json()["ok"] is True
+
+    from app.models import Vente
+
+    vente = Vente.query.order_by(Vente.id.desc()).first()
+    assert vente.montant_credit == 0  # réglée intégralement, jamais mise à crédit
 
 
 def test_paiement_combine_ariary_et_euros(client, login_seller, catalogue, db):

@@ -39,6 +39,15 @@ class Achat(db.Model):
     moyen_paiement_id = db.Column(db.Integer, db.ForeignKey("moyen_paiement.id"), nullable=False)
     observations = db.Column(db.Text, nullable=True)
 
+    # Annulation (droit "corrections", app/achats/routes.py::annuler) : jamais
+    # de suppression — l'achat reste visible, marqué annulé, motif tracé.
+    # Reverse le mouvement de stock (si achat de stock) et recrédite le
+    # compte débité à l'origine, symétriquement à la logique de l'achat.
+    is_annule = db.Column(db.Boolean, nullable=False, default=False)
+    annule_motif = db.Column(db.Text, nullable=True)
+    annule_par_nom = db.Column(db.String(120), nullable=True)
+    annule_le = db.Column(db.DateTime(timezone=True), nullable=True)
+
     created_by_subprofile_id = db.Column(db.Integer, db.ForeignKey("sub_profile.id"), nullable=True)
     created_by_name = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)

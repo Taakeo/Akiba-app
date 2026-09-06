@@ -38,6 +38,28 @@ class ReinitialisationError(ValueError):
     pass
 
 
+def resume_avant_reinitialisation():
+    """Chiffres réels de la base actuelle, affichés sur l'écran de
+    confirmation pour remplacer une explication abstraite par une preuve
+    concrète (retour utilisateur : confusion/peur que "l'inventaire bouge" —
+    montrer que le catalogue et le stock resteront identiques, chiffres à
+    l'appui, rassure mieux qu'un texte générique)."""
+    total_articles_stock = (
+        db.session.query(db.func.coalesce(db.func.sum(Produit.stock_quantite), 0))
+        .filter(Produit.is_archived.is_(False), Produit.stock_illimite.is_(False))
+        .scalar()
+    )
+    return {
+        "nb_produits": Produit.query.filter_by(is_archived=False).count(),
+        "total_articles_stock": total_articles_stock,
+        "nb_ventes": Vente.query.count(),
+        "nb_achats": Achat.query.count(),
+        "nb_ventes_externes": VenteExterne.query.count(),
+        "nb_fabrications": Fabrication.query.count(),
+        "nb_sessions_caisse": CaisseSession.query.count(),
+    }
+
+
 def reinitialiser_pour_production(app, current_user):
     try:
         horodatage = creer_sauvegarde(app, current_user)

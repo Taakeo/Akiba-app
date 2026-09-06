@@ -160,3 +160,72 @@ def test_fabrication_alerte_immediatement_si_emballage_faible(client, login_admi
     )
     assert response.status_code == 200
     assert b"faible" in response.data.lower()
+
+
+# --- Correction administrateur : annulation d'une fabrication ----------------
+
+
+def test_annuler_fabrication_requiert_le_droit_corrections(client, login_seller, catalogue, db):
+    from datetime import date
+
+    from app.models import Fabrication
+
+    fabrication = Fabrication(
+        produit_id=catalogue["produit_id"], quantite=5, responsable_nom="Admin",
+        date_fabrication=date(2024, 2, 1), created_by_name="Admin",
+    )
+    db.session.add(fabrication)
+    db.session.commit()
+
+    response = client.post(f"/production/{fabrication.id}/annuler", data={"motif": "Erreur"})
+    assert response.status_code == 403
+
+
+def test_annuler_fabrication_restaure_le_stock_et_lemballage(client, login_admin, catalogue, db):
+    emballage_id = _creer_emballage(db, catalogue, stock_quantite=10)
+
+    client.post(
+        "/production/nouvelle",
+        data={
+            "produit_id": str(catalogue["produit_id"]),
+            "quantite": "4",
+            "date_fabrication": "2024-02-01",
+            "packaging_produit_id": str(emballage_id),
+            "quantite_packaging": "4",
+        },
+    )
+
+    from app.models import Fabrication, Produit
+
+    fabrication = Fabrication.query.first()
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    emballage = db.session.get(Produit, emballage_id)
+    assert produit.stock_quantite == 14  # 10 + 4
+    assert emballage.stock_quantite == 6  # 10 - 4
+
+    response = client.post(f"/production/{fabrication.id}/annuler", data={"motif": "Doublon"})
+    assert response.status_code == 302
+
+    db.session.refresh(produit)
+    db.session.refresh(emballage)
+    db.session.refresh(fabrication)
+    assert produit.stock_quantite == 10  # rétabli
+    assert emballage.stock_quantite == 10  # rétabli
+    assert fabrication.is_annule is True
+
+
+def test_annuler_fabrication_deja_annulee_est_refuse(client, login_admin, catalogue, db):
+    client.post(
+        "/production/nouvelle",
+        data={"produit_id": str(catalogue["produit_id"]), "quantite": "4", "date_fabrication": "2024-02-01"},
+    )
+    from app.models import Fabrication, Produit
+
+    fabrication = Fabrication.query.first()
+    client.post(f"/production/{fabrication.id}/annuler", data={"motif": "Doublon"})
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    stock_apres_premiere_annulation = produit.stock_quantite
+
+    client.post(f"/production/{fabrication.id}/annuler", data={"motif": "Encore"})
+    db.session.refresh(produit)
+    assert produit.stock_quantite == stock_apres_premiere_annulation

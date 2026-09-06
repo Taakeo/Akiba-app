@@ -6,23 +6,49 @@
   <span class="material-symbols-outlined text-[20px]">arrow_back</span>
   Production
 </a>
-<div class="max-w-3xl bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
-  {{ section_header("edit", "Modifier la fabrication") }}
-  <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-6">
-    {{ fabrication.quantite }} × {{ fabrication.produit.name }} — déclaré par {{ fabrication.responsable_nom }}.
-    Le produit et la quantité ne sont plus modifiables (le stock a déjà été mis à jour) ; seule la traçabilité peut être corrigée.
-  </p>
-  <form method="post">
-    {{ form.hidden_tag() }}
+<div class="max-w-3xl flex flex-col gap-gutter">
+  {% if fabrication.is_annule %}
+  <div class="bg-error-container text-on-error-container rounded-2xl p-4 flex items-center gap-2">
+    <span class="material-symbols-outlined">cancel</span>
+    <span class="font-label-md text-label-md">Cette fabrication a été annulée{% if fabrication.annule_par_nom %} par {{ fabrication.annule_par_nom }}{% endif %}{% if fabrication.annule_motif %} — {{ fabrication.annule_motif }}{% endif %}.</span>
+  </div>
+  {% endif %}
 
-    {{ field(form.date_fabrication) }}
-    <div class="grid grid-cols-2 gap-x-4">
-      {{ field(form.numero_lot, help="Pour retrouver rapidement ce lot en cas de problème qualité.") }}
-      {{ field(form.ddm_dlc, help="Date de durabilité minimale ou limite de consommation.") }}
-    </div>
-    {{ field(form.observations, help="Toute précision utile sur cette fabrication.") }}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 {% if fabrication.is_annule %}opacity-60{% endif %}">
+    {{ section_header("edit", "Modifier la fabrication") }}
+    <p class="font-body-md text-sm text-on-surface-variant -mt-4 mb-6">
+      {{ fabrication.quantite }} × {{ fabrication.produit.name }} — déclaré par {{ fabrication.responsable_nom }}.
+      Le produit et la quantité ne sont plus modifiables (le stock a déjà été mis à jour) ; seule la traçabilité peut être corrigée.
+    </p>
+    <form method="post">
+      {{ form.hidden_tag() }}
 
-    {{ actions("Enregistrer", url_for("production.index")) }}
-  </form>
+      {{ field(form.date_fabrication) }}
+      <div class="grid grid-cols-2 gap-x-4">
+        {{ field(form.numero_lot, help="Pour retrouver rapidement ce lot en cas de problème qualité.") }}
+        {{ field(form.ddm_dlc, help="Date de durabilité minimale ou limite de consommation.") }}
+      </div>
+      {{ field(form.observations, help="Toute précision utile sur cette fabrication.") }}
+
+      {{ actions("Enregistrer", url_for("production.index")) }}
+    </form>
+  </div>
+
+  {% if current_user.profile.has_permission("corrections") and not fabrication.is_annule %}
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    {{ section_header("cancel", "Annuler cette fabrication") }}
+    <p class="font-body-md text-xs text-on-surface-variant -mt-4 mb-4">
+      Retire du stock le produit fini ajouté et restitue l'emballage consommé — utile en cas de doublon ou d'erreur de quantité.
+    </p>
+    <form method="post" action="{{ url_for('production.annuler', fabrication_id=fabrication.id) }}" onsubmit="return window.confirm('Annuler cette fabrication ? Le stock sera rétabli.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="motif" required placeholder="Motif de l'annulation (obligatoire)" class="w-full h-11 px-4 mb-2 bg-surface border border-outline-variant rounded-xl font-body-md text-sm">
+      <button type="submit" class="w-full h-touch-target-min flex items-center justify-center gap-2 rounded-full border border-error text-error font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[20px]">cancel</span>
+        Annuler cette fabrication
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

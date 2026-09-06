@@ -105,7 +105,9 @@ def rapport_production(date_debut, date_fin):
     """Fabrications, quantités produites, historique des lots. §9.2 CDC v1."""
     fabrications = (
         Fabrication.query.filter(
-            Fabrication.date_fabrication >= date_debut, Fabrication.date_fabrication <= date_fin
+            Fabrication.date_fabrication >= date_debut,
+            Fabrication.date_fabrication <= date_fin,
+            Fabrication.is_annule.is_(False),
         )
         .order_by(Fabrication.date_fabrication.desc())
         .all()
@@ -137,7 +139,9 @@ def rapport_rh(date_debut, date_fin, group_by):
         group_by = "salarie"
 
     remunerations = RemunerationSalarie.query.filter(
-        RemunerationSalarie.date_versement >= date_debut, RemunerationSalarie.date_versement <= date_fin
+        RemunerationSalarie.date_versement >= date_debut,
+        RemunerationSalarie.date_versement <= date_fin,
+        RemunerationSalarie.is_annule.is_(False),
     ).all()
 
     groupes = OrderedDict()
@@ -173,7 +177,9 @@ def rapport_achats(date_debut, date_fin, group_by):
         group_by = "fournisseur"
 
     debut, fin = _bornes_utc(date_debut, date_fin)
-    achats = Achat.query.filter(Achat.date_achat >= date_debut, Achat.date_achat <= date_fin).all()
+    achats = Achat.query.filter(
+        Achat.date_achat >= date_debut, Achat.date_achat <= date_fin, Achat.is_annule.is_(False)
+    ).all()
 
     groupes = OrderedDict()
     for achat in achats:
@@ -235,7 +241,9 @@ def rapport_total(date_debut, date_fin, poste_id=None, projet_id=None):
     # Ventes externes (§ nouvel onglet) — inclut les dons/financements passés
     # par cet onglet, confirmé comme leur point d'entrée dans le rapport total.
     ventes_externes = VenteExterne.query.filter(
-        VenteExterne.date_vente >= date_debut, VenteExterne.date_vente <= date_fin
+        VenteExterne.date_vente >= date_debut,
+        VenteExterne.date_vente <= date_fin,
+        VenteExterne.is_annule.is_(False),
     ).all()
     for ve in ventes_externes:
         if poste_id and ve.poste_id != poste_id:
@@ -256,7 +264,9 @@ def rapport_total(date_debut, date_fin, poste_id=None, projet_id=None):
             }
         )
 
-    achats_total = Achat.query.filter(Achat.date_achat >= date_debut, Achat.date_achat <= date_fin).all()
+    achats_total = Achat.query.filter(
+        Achat.date_achat >= date_debut, Achat.date_achat <= date_fin, Achat.is_annule.is_(False)
+    ).all()
     for achat in achats_total:
         if poste_id and achat.poste_id != poste_id:
             continue
@@ -282,7 +292,9 @@ def rapport_total(date_debut, date_fin, poste_id=None, projet_id=None):
     # réalité jamais bougé. `Salarie` n'a pas de vraie catégorie : "Salaires"
     # est un libellé calculé, pas une colonne en base.
     remunerations = RemunerationSalarie.query.filter(
-        RemunerationSalarie.date_versement >= date_debut, RemunerationSalarie.date_versement <= date_fin
+        RemunerationSalarie.date_versement >= date_debut,
+        RemunerationSalarie.date_versement <= date_fin,
+        RemunerationSalarie.is_annule.is_(False),
     ).all()
     for r in remunerations:
         if r.type_remuneration == "retenue" or not r.moyen_paiement_id:

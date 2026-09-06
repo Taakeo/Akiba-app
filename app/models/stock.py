@@ -65,7 +65,12 @@ def enregistrer_mouvement(produit, type_mouvement, motif, quantite, current_user
     if type_mouvement == "entree":
         produit.stock_quantite += quantite
     elif type_mouvement == "sortie":
-        produit.stock_quantite -= quantite
+        # Jamais de stock négatif (retour utilisateur) — une vente peut
+        # dépasser le stock affiché (inventaire pas à jour), mais le compteur
+        # reste plafonné à 0 plutôt que de partir dans le négatif. Le
+        # mouvement journalisé ci-dessous garde, lui, la quantité réellement
+        # sortie, pour un historique fidèle.
+        produit.stock_quantite = max(0, produit.stock_quantite - quantite)
     else:
         raise ValueError("type_mouvement doit être 'entree' ou 'sortie'.")
 

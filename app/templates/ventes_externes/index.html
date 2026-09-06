@@ -14,7 +14,7 @@
 
 <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
   {% for item in items %}
-  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %}">
+  <div class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_annule %}opacity-50{% endif %}">
     <div class="flex items-center gap-4">
       <div class="w-11 h-11 rounded-full flex items-center justify-center bg-secondary-container text-on-secondary-container">
         <span class="material-symbols-outlined">sell</span>
@@ -22,6 +22,7 @@
       <div>
         <p class="font-label-md text-label-md text-on-surface">
           {% if item.produit %}{{ item.quantite }} × {{ item.produit.name }}{% else %}{{ item.categorie.name }}{% endif %}
+          {% if item.is_annule %}<span class="text-error text-xs font-bold">(annulée{% if item.annule_motif %} — {{ item.annule_motif }}{% endif %})</span>{% endif %}
         </p>
         <p class="font-body-md text-xs text-on-surface-variant mt-1">
           {{ item.date_vente.strftime('%d/%m/%Y') }}
@@ -30,10 +31,37 @@
         </p>
       </div>
     </div>
-    <span class="font-headline-md text-body-lg font-bold text-on-surface">{{ "{:,}".format(item.montant_total).replace(",", " ") }}</span>
+    <div class="flex items-center gap-2">
+      <span class="font-headline-md text-body-lg font-bold text-on-surface">{{ "{:,}".format(item.montant_total).replace(",", " ") }}</span>
+      {% if current_user.profile.has_permission("corrections") and not item.is_annule %}
+      <button type="button" class="w-11 h-11 flex items-center justify-center text-error hover:bg-error-container rounded-full annuler-vente-externe-btn" title="Annuler" data-url="{{ url_for('ventes_externes.annuler', vente_externe_id=item.id) }}">
+        <span class="material-symbols-outlined text-[20px]">cancel</span>
+      </button>
+      {% endif %}
+    </div>
   </div>
   {% else %}
   <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune vente externe enregistrée.</p>
   {% endfor %}
 </div>
+
+{% if current_user.profile.has_permission("corrections") %}
+<form id="annuler-vente-externe-form" method="post" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="motif" id="annuler-vente-externe-motif">
+</form>
+<script>
+  document.querySelectorAll(".annuler-vente-externe-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const motif = window.prompt("Motif de l'annulation (obligatoire) ?");
+      if (!motif || !motif.trim()) return;
+      if (!window.confirm("Annuler cette vente externe ? Le stock et le compte financier seront rétablis.")) return;
+      const form = document.getElementById("annuler-vente-externe-form");
+      form.action = btn.dataset.url;
+      document.getElementById("annuler-vente-externe-motif").value = motif.trim();
+      form.submit();
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

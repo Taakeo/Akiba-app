@@ -101,7 +101,11 @@ def index():
             "prix": _prix_disponibles(p),
             "photoUrl": url_for("admin.produit_photo", produit_id=p.id) if p.photo_path else None,
             "codeBarres": p.code_barres,
-            "editUrl": url_for("admin.produit_modifier", produit_id=p.id) if peut_modifier_produits else None,
+            "editUrl": (
+                url_for("admin.produit_modifier", produit_id=p.id, depuis="pdv")
+                if peut_modifier_produits
+                else None
+            ),
         }
         for p in produits
     ]

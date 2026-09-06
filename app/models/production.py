@@ -34,6 +34,14 @@ class Fabrication(db.Model):
     packaging_produit_id = db.Column(db.Integer, db.ForeignKey("produit.id"), nullable=True)
     quantite_packaging = db.Column(db.Integer, nullable=True)
 
+    # Annulation (droit "corrections", app/production/routes.py::annuler) :
+    # reverse le stock du produit fini et restitue l'emballage consommé,
+    # jamais de suppression — voir Achat.is_annule pour le même principe.
+    is_annule = db.Column(db.Boolean, nullable=False, default=False)
+    annule_motif = db.Column(db.Text, nullable=True)
+    annule_par_nom = db.Column(db.String(120), nullable=True)
+    annule_le = db.Column(db.DateTime(timezone=True), nullable=True)
+
     created_by_subprofile_id = db.Column(db.Integer, db.ForeignKey("sub_profile.id"), nullable=True)
     created_by_name = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)

@@ -51,6 +51,14 @@ class VenteExterne(db.Model):
     moyen_paiement_id = db.Column(db.Integer, db.ForeignKey("moyen_paiement.id"), nullable=False)
     observations = db.Column(db.Text, nullable=True)
 
+    # Annulation (droit "corrections", app/ventes_externes/routes.py::annuler) :
+    # reverse le stock (si produit catalogué) et débite le compte crédité à
+    # l'origine — voir Achat.is_annule pour le même principe.
+    is_annule = db.Column(db.Boolean, nullable=False, default=False)
+    annule_motif = db.Column(db.Text, nullable=True)
+    annule_par_nom = db.Column(db.String(120), nullable=True)
+    annule_le = db.Column(db.DateTime(timezone=True), nullable=True)
+
     created_by_subprofile_id = db.Column(db.Integer, db.ForeignKey("sub_profile.id"), nullable=True)
     created_by_name = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)

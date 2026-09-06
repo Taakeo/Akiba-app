@@ -2,9 +2,9 @@
 {% from "_form_macros.html" import field, actions, section_header %}
 {% block title %}AKIBA APP - {{ "Modifier" if produit else "Nouveau" }} produit{% endblock %}
 {% block shell_content %}
-<a href="{{ url_for('admin.produits') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+<a href="{{ retour_url }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
   <span class="material-symbols-outlined text-[20px]">arrow_back</span>
-  Produits
+  {{ "Retour au PDV" if depuis == "pdv" else "Produits" }}
 </a>
 <header class="mb-6">
   <h2 class="font-headline-lg text-headline-lg text-on-surface">{{ "Modifier " + produit.name if produit else "Nouveau produit" }}</h2>
@@ -12,6 +12,7 @@
 
 <form method="post" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
   {{ form.hidden_tag() }}
+  <input type="hidden" name="depuis" value="{{ depuis }}">
 
   <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col">
     {{ section_header("label", "Identification") }}
@@ -104,7 +105,7 @@
       </div>
     </div>
 
-    {{ actions("Enregistrer" if produit else "Créer le produit", url_for("admin.produits")) }}
+    {{ actions("Enregistrer" if produit else "Créer le produit", retour_url) }}
   </div>
 </form>
 

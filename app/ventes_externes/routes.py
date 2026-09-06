@@ -1,8 +1,9 @@
-from flask import flash, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..admin.backup_service import log_audit
 from ..auth.decorators import permission_required
-from ..caisse.services import crediter_compte, montant_depuis_ariary
+from ..caisse.services import crediter_compte, debiter_compte, montant_depuis_ariary
 from ..extensions import db
 from ..models import (
     Categorie,
@@ -18,6 +19,7 @@ from ..models import (
     moyen_paiement_par_defaut,
     sous_categories_par_categorie,
 )
+from ..models.finance import utcnow
 from . import bp
 from .forms import VenteExterneForm
 
@@ -153,3 +155,49 @@ def nouveau():
         return redirect(url_for("ventes_externes.index"))
 
     return _render_form(form)
+
+
+@bp.route("/<int:vente_externe_id>/annuler", methods=["POST"])
+@permission_required("corrections")
+def annuler(vente_externe_id):
+    """Annule une vente externe déjà enregistrée (droit "corrections") :
+    reverse le stock (si produit catalogué) et débite le compte crédité à
+    l'origine — jamais de suppression, motif obligatoire, tracé (même
+    principe que pos/services.py::annuler_vente)."""
+    vente_externe = db.session.get(VenteExterne, vente_externe_id)
+    if vente_externe is None:
+        abort(404)
+    if vente_externe.is_annule:
+        flash("Cette vente externe est déjà annulée.", "error")
+        return redirect(url_for("ventes_externes.index"))
+
+    motif = (request.form.get("motif") or "").strip()
+    if not motif:
+        flash("Un motif est obligatoire pour annuler une vente externe.", "error")
+        return redirect(url_for("ventes_externes.index"))
+
+    if vente_externe.produit_id:
+        produit = db.session.get(Produit, vente_externe.produit_id)
+        if produit is not None:
+            enregistrer_mouvement(
+                produit,
+                "entree",
+                "correction",
+                vente_externe.quantite,
+                current_user,
+                commentaire=f"Annulation vente externe #{vente_externe.id}",
+                reference_type="vente_externe",
+                reference_id=vente_externe.id,
+            )
+
+    moyen = vente_externe.moyen_paiement
+    debiter_compte(moyen.compte_financier, montant_depuis_ariary(moyen, vente_externe.montant_total))
+
+    vente_externe.is_annule = True
+    vente_externe.annule_motif = motif
+    vente_externe.annule_par_nom = current_user.full_name
+    vente_externe.annule_le = utcnow()
+    db.session.commit()
+    log_audit(current_app, "vente_externe_annulee", f"Vente externe #{vente_externe.id} — {motif}", current_user)
+    flash("Vente externe annulée : stock et compte financier ont été rétablis.", "info")
+    return redirect(url_for("ventes_externes.index"))

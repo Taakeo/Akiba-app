@@ -19,6 +19,26 @@ COLONNES_ATTENDUES = [
     ("produit", "packaging_produit_id", "INTEGER"),
     ("fabrication", "packaging_produit_id", "INTEGER"),
     ("fabrication", "quantite_packaging", "INTEGER"),
+    # Annulation (droit "corrections") étendue aux achats, fabrications,
+    # ventes externes et rémunérations — même principe que Vente.statut,
+    # jamais de suppression (app/models/achat.py, production.py,
+    # vente_externe.py, rh.py).
+    ("achat", "is_annule", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("achat", "annule_motif", "TEXT"),
+    ("achat", "annule_par_nom", "VARCHAR(120)"),
+    ("achat", "annule_le", "DATETIME"),
+    ("fabrication", "is_annule", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("fabrication", "annule_motif", "TEXT"),
+    ("fabrication", "annule_par_nom", "VARCHAR(120)"),
+    ("fabrication", "annule_le", "DATETIME"),
+    ("vente_externe", "is_annule", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("vente_externe", "annule_motif", "TEXT"),
+    ("vente_externe", "annule_par_nom", "VARCHAR(120)"),
+    ("vente_externe", "annule_le", "DATETIME"),
+    ("remuneration_salarie", "is_annule", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("remuneration_salarie", "annule_motif", "TEXT"),
+    ("remuneration_salarie", "annule_par_nom", "VARCHAR(120)"),
+    ("remuneration_salarie", "annule_le", "DATETIME"),
 ]
 
 
@@ -57,6 +77,13 @@ def appliquer_migrations():
     # jamais réimposé, même si l'administrateur retire le droit ensuite.
     _backfill_permission_une_fois("responsable", "produits", "responsable_produits_v1")
     _backfill_permission_une_fois("responsable", "corrections", "responsable_corrections_v1")
+    # Le vendeur a désormais aussi accès aux achats, stocks, clients et
+    # production (retour utilisateur) — backfillé une seule fois sur les
+    # bases déjà en production, jamais réimposé si retiré ensuite.
+    _backfill_permission_une_fois("vendeur", "achats", "vendeur_achats_v1")
+    _backfill_permission_une_fois("vendeur", "stocks", "vendeur_stocks_v1")
+    _backfill_permission_une_fois("vendeur", "clients", "vendeur_clients_v1")
+    _backfill_permission_une_fois("vendeur", "production", "vendeur_production_v1")
 
 
 def _backfill_droit_ventes_externes():
