@@ -1,4 +1,4 @@
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..admin.backup_service import log_audit
@@ -12,6 +12,7 @@ from ..models import (
     MouvementCaisse,
     ParametresImprimante,
     TauxChange,
+    TYPES_REMUNERATION,
     Vente,
     moyen_paiement_par_defaut,
 )
@@ -21,11 +22,14 @@ from .forms import FermetureCaisseForm, MouvementCaisseForm, OuvertureCaisseForm
 from .services import (
     achats_de_la_session,
     calculer_theorique,
+    construire_evenements_session,
+    corrections_de_la_session,
     crediter_compte,
     debiter_compte,
     get_caisse_compte,
     get_compte_akiba,
     get_open_session,
+    remunerations_de_la_session,
     resume_session_par_moyen,
     tenter_ouverture_tiroir,
 )
@@ -59,51 +63,6 @@ def taux_change():
     return redirect(url_for("caisse.status"))
 
 
-def _construire_evenements_session(session):
-    # "Transactions et tickets" de la session : tout ce qui s'y est passé
-    # (ventes, mouvements manuels, achats — quel que soit leur moyen de
-    # paiement), dans un seul journal chronologique cliquable. Le tri se
-    # fait sur le vrai datetime (`moment`), pas sur le texte déjà formaté —
-    # un tri sur chaîne "JJ/MM HH:MM" mélange l'ordre dès qu'on change de
-    # mois (ex. "01/09" < "30/08" lexicographiquement).
-    events = []
-    for mouvement in session.mouvements:
-        events.append(
-            {
-                "titre": mouvement.motif,
-                "sous_titre": f"{mouvement.created_at:%d/%m %H:%M} — {mouvement.moyen_paiement.name} — par {mouvement.created_by_name}",
-                "montant": mouvement.montant if mouvement.type_mouvement == "entree" else -mouvement.montant,
-                "icon": "arrow_downward" if mouvement.type_mouvement == "entree" else "arrow_upward",
-                "moment": mouvement.created_at,
-                "lien": None,
-            }
-        )
-    for vente in Vente.query.filter_by(caisse_session_id=session.id, statut="validee"):
-        events.append(
-            {
-                "titre": f"Vente comptoir #{vente.id}",
-                "sous_titre": f"{vente.created_at:%d/%m %H:%M} — par {vente.created_by_name}",
-                "montant": vente.total,
-                "icon": "point_of_sale",
-                "moment": vente.created_at,
-                "lien": url_for("pos.recu", vente_id=vente.id),
-            }
-        )
-    for achat in achats_de_la_session(session):
-        events.append(
-            {
-                "titre": achat.nom or (f"Achat #{achat.id}" if achat.type_achat == "stock" else "Dépense"),
-                "sous_titre": f"{achat.created_at:%d/%m %H:%M} — {achat.moyen_paiement.name} — par {achat.created_by_name}",
-                "montant": -achat.montant_total,
-                "icon": "shopping_cart",
-                "moment": achat.created_at,
-                "lien": url_for("achats.modifier", achat_id=achat.id),
-            }
-        )
-    events.sort(key=lambda e: e["moment"], reverse=True)
-    return events
-
-
 @bp.route("/pdv")
 @permission_required("caisse")
 def pdv():
@@ -116,7 +75,7 @@ def pdv():
     resume_moyens = []
     if session:
         theorique = calculer_theorique(session)
-        events = _construire_evenements_session(session)
+        events = construire_evenements_session(session)
         resume_moyens = resume_session_par_moyen(session)
 
     return render_template(
@@ -323,3 +282,51 @@ def mouvement():
         return redirect(url_for("caisse.pdv"))
 
     return render_template("caisse/mouvement.html", form=form, moyens=moyens)
+
+
+@bp.route("/sessions")
+@permission_required("caisse")
+def sessions():
+    """Historique des sessions de caisse (ouvertes et fermées), point d'entrée
+    vers le rapport détaillé de chacune (§ amélioration rapport de session
+    de caisse)."""
+    items = CaisseSession.query.order_by(CaisseSession.ouverte_le.desc()).all()
+    return render_template("caisse/sessions.html", items=items)
+
+
+@bp.route("/sessions/<int:session_id>")
+@permission_required("caisse")
+def session_rapport(session_id):
+    """Rapport complet d'une session de caisse, ouverte ou fermée : tout ce
+    qui permet de vérifier précisément ce qui s'y est passé (§ amélioration
+    rapport de session de caisse)."""
+    session = db.session.get(CaisseSession, session_id)
+    if session is None:
+        abort(404)
+
+    theorique = calculer_theorique(session)
+    events = construire_evenements_session(session)
+    corrections = corrections_de_la_session(session)
+    resume_moyens = resume_session_par_moyen(session)
+    ventes = (
+        Vente.query.filter_by(caisse_session_id=session.id, statut="validee")
+        .order_by(Vente.created_at)
+        .all()
+    )
+    total_ventes = sum(v.total for v in ventes)
+    achats = sorted(achats_de_la_session(session), key=lambda a: a.created_at)
+    remunerations = sorted(remunerations_de_la_session(session), key=lambda r: r.created_at)
+
+    return render_template(
+        "caisse/session_rapport.html",
+        session=session,
+        theorique=theorique,
+        events=events,
+        corrections=corrections,
+        resume_moyens=resume_moyens,
+        ventes=ventes,
+        total_ventes=total_ventes,
+        achats=achats,
+        remunerations=remunerations,
+        labels_type_remuneration=dict(TYPES_REMUNERATION),
+    )

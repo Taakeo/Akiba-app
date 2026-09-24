@@ -1,4 +1,4 @@
-from flask import flash
+from flask import flash, url_for
 
 from ..extensions import db
 from ..models import (
@@ -8,11 +8,16 @@ from ..models import (
     MouvementCaisse,
     MoyenPaiement,
     ParametresImprimante,
+    RemunerationSalarie,
     TauxChange,
+    TYPES_REMUNERATION,
+    Vente,
     VentePaiement,
 )
 from ..models.finance import utcnow
 from .printer import ImprimanteError, ouvrir_tiroir
+
+_LABELS_TYPE_REMUNERATION = dict(TYPES_REMUNERATION)
 
 
 def montant_en_ariary(moyen, montant):
@@ -163,8 +168,23 @@ def calculer_theorique(session: CaisseSession):
         .scalar()
     )
 
+    # Versements RH (salaire, avance, prime, retenue) payés en espèces depuis
+    # cette même caisse pendant la session — même principe que achats_especes
+    # ci-dessus : sans ça, une avance donnée en cash au tiroir n'était jamais
+    # déduite du théorique, créant un faux écart à la clôture (retour
+    # utilisateur). Un versement annulé (rh/routes.py::annuler_remuneration)
+    # recrédite déjà le compte séparément — même filtre is_annule que pour un
+    # achat annulé.
+    remunerations_especes = (
+        db.session.query(db.func.coalesce(db.func.sum(RemunerationSalarie.montant), 0))
+        .filter(RemunerationSalarie.caisse_session_id == session.id, RemunerationSalarie.is_annule.is_(False))
+        .join(RemunerationSalarie.moyen_paiement)
+        .filter(RemunerationSalarie.moyen_paiement.has(compte_financier_id=compte_id))
+        .scalar()
+    )
+
     recettes = encaissements_ventes + entrees
-    depenses = sorties + achats_especes
+    depenses = sorties + achats_especes + remunerations_especes
     return {
         "recettes": recettes,
         "depenses": depenses,
@@ -191,6 +211,24 @@ def achats_de_la_session(session):
     ).all()
 
 
+def remunerations_de_la_session(session):
+    """Versements RH (salaire, avance, prime, retenue) à imputer à cette
+    session pour le résumé/reporting par moyen de paiement — même principe
+    que achats_de_la_session() : un versement payé en espèces depuis la
+    caisse physique y est déjà rattaché (caisse_session_id), un versement
+    payé par un autre moyen pendant la session ne l'est jamais, on le
+    retrouve ici via son horodatage."""
+    fin = session.fermee_le or utcnow()
+    return RemunerationSalarie.query.filter(
+        RemunerationSalarie.is_annule.is_(False),
+        RemunerationSalarie.moyen_paiement_id.isnot(None),
+        db.or_(
+            RemunerationSalarie.caisse_session_id == session.id,
+            db.and_(RemunerationSalarie.created_at >= session.ouverte_le, RemunerationSalarie.created_at <= fin),
+        ),
+    ).all()
+
+
 def resume_session_par_moyen(session):
     """Résumé/reporting (pas un solde physique) : pour chaque moyen de
     paiement actif, ce qui a été encaissé/décaissé pendant cette session —
@@ -202,6 +240,12 @@ def resume_session_par_moyen(session):
     achats_par_moyen = {}
     for achat in achats_de_la_session(session):
         achats_par_moyen[achat.moyen_paiement_id] = achats_par_moyen.get(achat.moyen_paiement_id, 0) + achat.montant_total
+
+    remunerations_par_moyen = {}
+    for remuneration in remunerations_de_la_session(session):
+        remunerations_par_moyen[remuneration.moyen_paiement_id] = (
+            remunerations_par_moyen.get(remuneration.moyen_paiement_id, 0) + remuneration.montant
+        )
 
     moyens = MoyenPaiement.query.filter_by(is_archived=False).order_by(MoyenPaiement.name).all()
     resultats = []
@@ -234,6 +278,7 @@ def resume_session_par_moyen(session):
             .scalar()
         )
         achats_montant = achats_par_moyen.get(moyen.id, 0)
+        remunerations_montant = remunerations_par_moyen.get(moyen.id, 0)
 
         # Le fond de caisse initial n'appartient qu'au compte physique sur
         # lequel la session a été ouverte — sans ça, ce tableau affichait un
@@ -251,7 +296,141 @@ def resume_session_par_moyen(session):
                 "entrees": entrees,
                 "sorties": sorties,
                 "achats": achats_montant,
-                "total": fond_ouverture + encaissements_ventes + entrees - sorties - achats_montant,
+                "remunerations": remunerations_montant,
+                "total": (
+                    fond_ouverture + encaissements_ventes + entrees - sorties - achats_montant - remunerations_montant
+                ),
             }
         )
     return resultats
+
+
+def construire_evenements_session(session):
+    """Journal chronologique de tout ce qui s'est passé pendant une session
+    (ventes, mouvements manuels, achats) — utilisé à la fois par l'écran
+    "Caisse PDV" (session en cours) et par le rapport de session, ouverte ou
+    fermée (§ amélioration rapport de session de caisse). Le tri se fait sur
+    le vrai datetime (`moment`), pas sur le texte déjà formaté — un tri sur
+    chaîne "JJ/MM HH:MM" mélange l'ordre dès qu'on change de mois."""
+    events = []
+    for mouvement in session.mouvements:
+        events.append(
+            {
+                "titre": mouvement.motif,
+                "sous_titre": f"{mouvement.created_at:%d/%m %H:%M} — {mouvement.moyen_paiement.name} — par {mouvement.created_by_name}",
+                "montant": mouvement.montant if mouvement.type_mouvement == "entree" else -mouvement.montant,
+                "icon": "arrow_downward" if mouvement.type_mouvement == "entree" else "arrow_upward",
+                "moment": mouvement.created_at,
+                "lien": None,
+            }
+        )
+    for vente in Vente.query.filter_by(caisse_session_id=session.id, statut="validee"):
+        events.append(
+            {
+                "titre": f"Vente comptoir #{vente.id}",
+                "sous_titre": f"{vente.created_at:%d/%m %H:%M} — par {vente.created_by_name}",
+                "montant": vente.total,
+                "icon": "point_of_sale",
+                "moment": vente.created_at,
+                "lien": url_for("pos.recu", vente_id=vente.id),
+            }
+        )
+    for achat in achats_de_la_session(session):
+        events.append(
+            {
+                "titre": achat.nom or (f"Achat #{achat.id}" if achat.type_achat == "stock" else "Dépense"),
+                "sous_titre": f"{achat.created_at:%d/%m %H:%M} — {achat.moyen_paiement.name} — par {achat.created_by_name}",
+                "montant": -achat.montant_total,
+                "icon": "shopping_cart",
+                "moment": achat.created_at,
+                "lien": url_for("achats.modifier", achat_id=achat.id),
+            }
+        )
+    for remuneration in remunerations_de_la_session(session):
+        events.append(
+            {
+                "titre": f"{_LABELS_TYPE_REMUNERATION.get(remuneration.type_remuneration, remuneration.type_remuneration)} — {remuneration.salarie.nom}",
+                "sous_titre": f"{remuneration.created_at:%d/%m %H:%M} — {remuneration.moyen_paiement.name} — par {remuneration.created_by_name}",
+                "montant": -remuneration.montant,
+                "icon": "badge",
+                "moment": remuneration.created_at,
+                "lien": url_for("rh.fiche", salarie_id=remuneration.salarie_id),
+            }
+        )
+    events.sort(key=lambda e: e["moment"], reverse=True)
+    return events
+
+
+def corrections_de_la_session(session):
+    """Ventes annulées, ventes corrigées et achats annulés rattachés à cette
+    session — section "corrections" du rapport de session de caisse (§
+    amélioration rapport de session de caisse) : distinct du journal
+    chronologique normal (construire_evenements_session), qui n'affiche que
+    les opérations encore valides."""
+    corrections = []
+    for vente in Vente.query.filter_by(caisse_session_id=session.id, statut="annulee"):
+        moment = vente.annule_le or vente.created_at
+        corrections.append(
+            {
+                "titre": f"Vente #{vente.id} annulée",
+                "sous_titre": (
+                    f"{moment:%d/%m %H:%M} — motif : {vente.annule_motif or '—'} — "
+                    f"par {vente.annule_par_nom or vente.created_by_name}"
+                ),
+                "montant": -vente.total,
+                "icon": "cancel",
+                "moment": moment,
+                "lien": url_for("pos.recu", vente_id=vente.id),
+            }
+        )
+    for vente in Vente.query.filter(
+        Vente.caisse_session_id == session.id,
+        Vente.statut == "validee",
+        Vente.derniere_correction_le.isnot(None),
+    ):
+        corrections.append(
+            {
+                "titre": f"Vente #{vente.id} corrigée",
+                "sous_titre": (
+                    f"{vente.derniere_correction_le:%d/%m %H:%M} — motif : {vente.derniere_correction_motif or '—'} — "
+                    f"par {vente.derniere_correction_par_nom}"
+                ),
+                "montant": None,
+                "icon": "edit",
+                "moment": vente.derniere_correction_le,
+                "lien": url_for("pos.recu", vente_id=vente.id),
+            }
+        )
+    for achat in Achat.query.filter_by(caisse_session_id=session.id, is_annule=True):
+        moment = achat.annule_le or achat.created_at
+        corrections.append(
+            {
+                "titre": f"{achat.nom or ('Achat #' + str(achat.id))} annulé",
+                "sous_titre": (
+                    f"{moment:%d/%m %H:%M} — motif : {achat.annule_motif or '—'} — "
+                    f"par {achat.annule_par_nom or achat.created_by_name}"
+                ),
+                "montant": achat.montant_total,
+                "icon": "cancel",
+                "moment": moment,
+                "lien": url_for("achats.modifier", achat_id=achat.id),
+            }
+        )
+    for remuneration in RemunerationSalarie.query.filter_by(caisse_session_id=session.id, is_annule=True):
+        moment = remuneration.annule_le or remuneration.created_at
+        label = _LABELS_TYPE_REMUNERATION.get(remuneration.type_remuneration, remuneration.type_remuneration)
+        corrections.append(
+            {
+                "titre": f"{label} — {remuneration.salarie.nom} annulé(e)",
+                "sous_titre": (
+                    f"{moment:%d/%m %H:%M} — motif : {remuneration.annule_motif or '—'} — "
+                    f"par {remuneration.annule_par_nom or remuneration.created_by_name}"
+                ),
+                "montant": remuneration.montant,
+                "icon": "cancel",
+                "moment": moment,
+                "lien": url_for("rh.fiche", salarie_id=remuneration.salarie_id),
+            }
+        )
+    corrections.sort(key=lambda e: e["moment"], reverse=True)
+    return corrections

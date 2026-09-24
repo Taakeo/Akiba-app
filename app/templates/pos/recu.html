@@ -87,7 +87,7 @@
     <div class="flex flex-col gap-2">
       <a href="{{ url_for('pos.vente_modifier', vente_id=vente.id) }}" class="w-full h-touch-target-min flex items-center justify-center gap-2 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md">
         <span class="material-symbols-outlined text-[20px]">edit</span>
-        Corriger le classement (client, catégorie...)
+        Corriger la vente (client, articles, paiement...)
       </a>
       <form method="post" action="{{ url_for('pos.vente_annuler', vente_id=vente.id) }}" onsubmit="return window.confirm('Annuler cette vente ? Le stock et les comptes financiers seront rétablis.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

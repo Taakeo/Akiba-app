@@ -33,6 +33,22 @@
     </div>
     <div class="flex items-center gap-2">
       <span class="font-headline-md text-body-lg font-bold text-on-surface">{{ "{:,}".format(item.montant_total).replace(",", " ") }}</span>
+      {% if not item.is_annule %}
+        {% if item.facture_id %}
+        <a href="{{ url_for('factures.voir', facture_id=item.facture_id) }}" class="h-9 px-3 flex items-center gap-1 rounded-full border border-outline-variant text-on-surface font-label-md text-xs" title="Voir la facture {{ item.facture.numero }}">
+          <span class="material-symbols-outlined text-[16px]">description</span>
+          {{ item.facture.numero }}
+        </a>
+        {% elif item.client_id %}
+        <form method="post" action="{{ url_for('factures.depuis_vente_externe', vente_externe_id=item.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="h-9 px-3 flex items-center gap-1 rounded-full border border-outline-variant text-on-surface font-label-md text-xs">
+            <span class="material-symbols-outlined text-[16px]">description</span>
+            Facturer
+          </button>
+        </form>
+        {% endif %}
+      {% endif %}
       {% if current_user.profile.has_permission("corrections") and not item.is_annule %}
       <button type="button" class="w-11 h-11 flex items-center justify-center text-error hover:bg-error-container rounded-full annuler-vente-externe-btn" title="Annuler" data-url="{{ url_for('ventes_externes.annuler', vente_externe_id=item.id) }}">
         <span class="material-symbols-outlined text-[20px]">cancel</span>

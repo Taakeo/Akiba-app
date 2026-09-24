@@ -143,6 +143,13 @@ class RemunerationSalarie(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     salarie_id = db.Column(db.Integer, db.ForeignKey("salarie.id"), nullable=False)
 
+    # Rattaché à la session de caisse en cours seulement si versé en espèces
+    # depuis la caisse physique du PDV — même principe que Achat.caisse_session_id
+    # (app/models/achat.py) : sans ce lien, une avance payée en cash n'était
+    # jamais déduite du théorique du tiroir ni visible dans le résumé/rapport
+    # de session, créant un écart apparent à la clôture (retour utilisateur).
+    caisse_session_id = db.Column(db.Integer, db.ForeignKey("caisse_session.id"), nullable=True)
+
     type_remuneration = db.Column(db.String(30), nullable=False)
     montant = db.Column(db.Integer, nullable=False)
     date_versement = db.Column(db.Date, nullable=False)

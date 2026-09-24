@@ -68,18 +68,17 @@ def generer_facture_pdf(facture):
     elements.append(Paragraph(facture.client_adresse.replace("\n", "<br/>"), styles["Normal"]))
     elements.append(Spacer(1, 16))
 
-    data = [["Ticket", "Article", "Qté", "Prix unitaire", "Total"]]
-    for vente in facture.ventes:
-        for ligne in vente.lignes:
-            data.append(
-                [
-                    f"#{vente.id}",
-                    ligne.produit_nom + (" (offert)" if ligne.offert else ""),
-                    str(ligne.quantite),
-                    _montant(ligne.prix_unitaire),
-                    _montant(ligne.total_ligne),
-                ]
-            )
+    data = [["Réf.", "Article", "Qté", "Prix unitaire", "Total"]]
+    for ligne in facture.lignes_affichage():
+        data.append(
+            [
+                ligne["reference"],
+                ligne["description"],
+                str(ligne["quantite"]),
+                _montant(ligne["prix_unitaire"]),
+                _montant(ligne["total"]),
+            ]
+        )
 
     table = Table(data, hAlign="LEFT", colWidths=[45, 210, 35, 80, 80])
     table.setStyle(

@@ -51,6 +51,11 @@ class VenteExterne(db.Model):
     moyen_paiement_id = db.Column(db.Integer, db.ForeignKey("moyen_paiement.id"), nullable=False)
     observations = db.Column(db.Text, nullable=True)
 
+    # Une vente externe ne peut appartenir qu'à une seule facture officielle,
+    # même principe que Vente.facture_id (app/models/ventes.py) — une fois
+    # facturée, elle disparaît des choix proposés pour une nouvelle facture.
+    facture_id = db.Column(db.Integer, db.ForeignKey("facture.id"), nullable=True)
+
     # Annulation (droit "corrections", app/ventes_externes/routes.py::annuler) :
     # reverse le stock (si produit catalogué) et débite le compte crédité à
     # l'origine — voir Achat.is_annule pour le même principe.
@@ -63,13 +68,14 @@ class VenteExterne(db.Model):
     created_by_name = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
-    client = db.relationship("Client")
+    client = db.relationship("Client", backref="ventes_externes")
     poste = db.relationship("Poste")
     projet = db.relationship("Projet")
     categorie = db.relationship("Categorie")
     sous_categorie = db.relationship("SousCategorie")
     produit = db.relationship("Produit")
     moyen_paiement = db.relationship("MoyenPaiement")
+    facture = db.relationship("Facture", back_populates="ventes_externes")
 
     def __repr__(self):
         return f"<VenteExterne #{self.id} {self.montant_total}>"

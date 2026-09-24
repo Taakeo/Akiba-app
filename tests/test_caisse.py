@@ -385,9 +385,9 @@ def test_pdv_transactions_triees_par_vrai_datetime_pas_par_texte(client, login_a
     db.session.add_all([ancien, recent])
     db.session.commit()
 
-    from app.caisse.routes import _construire_evenements_session
+    from app.caisse.services import construire_evenements_session
 
-    events = _construire_evenements_session(session)
+    events = construire_evenements_session(session)
     titres = [e["titre"] for e in events]
     assert titres.index("Mouvement du 1er septembre") < titres.index("Mouvement du 30 août")
 
@@ -699,3 +699,126 @@ def test_ouverture_suivante_prerempli_avec_le_reliquat(client, login_admin, cata
     response = client.get("/caisse/ouverture")
     assert response.status_code == 200
     assert b'value="3000"' in response.data
+
+
+def test_rapport_de_session_liste_ventes_mouvements_et_corrections(client, login_admin, catalogue, db):
+    """Le rapport doit exposer tout ce qui s'est passé pendant une session
+    déjà clôturée : ventes détaillées, mouvements, et les éventuelles
+    annulations/corrections (§ amélioration rapport de session de caisse)."""
+    from app.pos.services import annuler_vente
+    from app.models import CaisseSession, SubProfile, Vente
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "1000"})
+    session = CaisseSession.query.filter_by(statut="ouverte").first()
+
+    response = client.post(
+        "/pos/vente",
+        json={
+            "type_tarif_id": catalogue["type_tarif_id"],
+            "lignes": [{"produit_id": catalogue["produit_id"], "quantite": 1, "remise": 0, "offert": False}],
+            "paiements": [{"moyen_paiement_id": catalogue["moyen_paiement_id"], "montant": 8000}],
+        },
+    )
+    vente_id = int(response.get_json()["redirect"].split("/")[-1].split("?")[0])
+
+    response2 = client.post(
+        "/pos/vente",
+        json={
+            "type_tarif_id": catalogue["type_tarif_id"],
+            "lignes": [{"produit_id": catalogue["produit_id"], "quantite": 1, "remise": 0, "offert": False}],
+            "paiements": [{"moyen_paiement_id": catalogue["moyen_paiement_id"], "montant": 8000}],
+        },
+    )
+    vente_id_2 = int(response2.get_json()["redirect"].split("/")[-1].split("?")[0])
+
+    admin = SubProfile.query.first()
+    vente_a_annuler = db.session.get(Vente, vente_id_2)
+    annuler_vente(vente_a_annuler, "Double saisie", admin)
+
+    client.post(
+        "/caisse/mouvement",
+        data={"type_mouvement": "sortie", "montant": "500", "moyen_paiement_id": catalogue["moyen_paiement_id"], "motif": "Achat timbre", "origine": "pdv"},
+    )
+
+    client.post("/caisse/fermeture", data={"fond_reel": "8500", "montant_preleve": "0", "commentaire": "RAS"})
+
+    response = client.get(f"/caisse/sessions/{session.id}")
+    assert response.status_code == 200
+    body = response.data.decode("utf-8")
+    assert f"Vente #{vente_id}" in body
+    assert "Achat timbre" in body
+    assert f"Vente #{vente_id_2} annulée" in body
+    assert "Double saisie" in body
+
+    historique = client.get("/caisse/sessions")
+    assert historique.status_code == 200
+    assert f"Session #{session.id}".encode() in historique.data
+
+
+def test_avance_rh_payee_en_especes_pdv_est_deduite_du_theorique(client, login_admin, catalogue, db):
+    """Régression : une avance (ou tout autre versement RH) payée en espèces
+    depuis le tiroir-caisse du PDV débitait bien le compte financier, mais
+    n'était jamais rattachée à la session de caisse — le théorique du
+    tiroir restait donc surévalué, créant un faux écart à la clôture (retour
+    utilisateur)."""
+    from app.caisse.services import calculer_theorique, get_open_session
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "50000"})
+    session = get_open_session()
+
+    from app.models import Salarie
+
+    salarie = Salarie(nom="Employé Test", date_embauche=None)
+    db.session.add(salarie)
+    db.session.commit()
+
+    resp = client.post(
+        f"/rh/{salarie.id}/remuneration",
+        data={
+            "type_remuneration": "avance",
+            "montant": "20000",
+            "date_versement": "2024-01-15",
+            "moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+        },
+    )
+    assert resp.status_code == 302
+
+    from app.models import RemunerationSalarie
+
+    remuneration = RemunerationSalarie.query.first()
+    assert remuneration.caisse_session_id == session.id
+
+    db.session.refresh(session)
+    theorique = calculer_theorique(session)
+    assert theorique["theorique"] == 50000 - 20000
+
+
+def test_avance_rh_apparait_dans_le_resume_et_le_rapport_de_session(client, login_admin, catalogue, db):
+    from app.caisse.services import get_open_session, resume_session_par_moyen
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    session = get_open_session()
+
+    from app.models import Salarie
+
+    salarie = Salarie(nom="Employé Rapport", date_embauche=None)
+    db.session.add(salarie)
+    db.session.commit()
+
+    client.post(
+        f"/rh/{salarie.id}/remuneration",
+        data={
+            "type_remuneration": "avance",
+            "montant": "15000",
+            "date_versement": "2024-01-15",
+            "moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+        },
+    )
+
+    resume = resume_session_par_moyen(session)
+    ligne_especes = next(r for r in resume if r["moyen"].id == catalogue["moyen_paiement_id"])
+    assert ligne_especes["remunerations"] == 15000
+
+    rapport = client.get(f"/caisse/sessions/{session.id}")
+    assert rapport.status_code == 200
+    assert "Employé Rapport".encode() in rapport.data

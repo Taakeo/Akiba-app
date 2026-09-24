@@ -19,7 +19,7 @@ from ..models import (
     Vente,
 )
 from . import bp
-from .services import VenteError, annuler_vente, enregistrer_vente
+from .services import VenteError, annuler_vente, corriger_vente, enregistrer_vente
 
 
 @bp.route("/")
@@ -272,40 +272,74 @@ def vente_annuler(vente_id):
     return redirect(url_for("pos.recu", vente_id=vente.id))
 
 
+def _vente_modifier_contexte(vente):
+    return {
+        "vente": vente,
+        "postes": Poste.query.filter_by(is_archived=False).order_by(Poste.name).all(),
+        "projets": Projet.query.filter_by(is_archived=False).order_by(Projet.name).all(),
+        "categories": Categorie.query.filter_by(is_archived=False).order_by(Categorie.name).all(),
+        "sous_categories": SousCategorie.query.filter_by(is_archived=False).order_by(SousCategorie.name).all(),
+        "clients": Client.query.filter_by(is_archived=False).order_by(Client.nom).all(),
+        "produits": Produit.query.filter_by(is_archived=False, vendable_pdv=True).order_by(Produit.name).all(),
+        "moyens_paiement": MoyenPaiement.query.filter_by(is_archived=False).order_by(MoyenPaiement.name).all(),
+    }
+
+
 @bp.route("/vente/<int:vente_id>/modifier", methods=["GET", "POST"])
 @permission_required("corrections")
 def vente_modifier(vente_id):
-    """Corrige le classement d'une vente déjà validée (mauvais client,
-    mauvaise catégorie...) sans jamais toucher quantité/prix/produit/paiement
-    — ces derniers passent par l'annulation (vente_annuler), pas par une
-    édition directe (retour utilisateur : les deux mécanismes sont
-    nécessaires, jamais un seul)."""
+    """Corrige une vente déjà validée : classement comptable, client,
+    lignes (quantité, ajout, suppression) et moyen(s) de paiement — un motif
+    est obligatoire dès que la correction touche à autre chose que le simple
+    classement (voir corriger_vente(), le point le plus fréquent restant une
+    erreur de moyen de paiement). L'annulation (vente_annuler) reste la seule
+    option si la vente doit disparaître entièrement."""
     vente = db.session.get(Vente, vente_id)
     if vente is None:
         abort(404)
-
-    postes = Poste.query.filter_by(is_archived=False).order_by(Poste.name).all()
-    projets = Projet.query.filter_by(is_archived=False).order_by(Projet.name).all()
-    categories = Categorie.query.filter_by(is_archived=False).order_by(Categorie.name).all()
-    sous_categories = SousCategorie.query.filter_by(is_archived=False).order_by(SousCategorie.name).all()
-    clients = Client.query.filter_by(is_archived=False).order_by(Client.nom).all()
+    if vente.statut != "validee":
+        flash("Cette vente est annulée — elle ne peut plus être corrigée.", "error")
+        return redirect(url_for("pos.recu", vente_id=vente.id))
 
     if request.method == "POST":
-        client_id = request.form.get("client_id", type=int)
-        if client_id:
-            client = db.session.get(Client, client_id)
-            if client is None or client.is_archived:
-                flash("Client invalide.", "error")
-                return render_template(
-                    "pos/vente_modifier.html", vente=vente, postes=postes, projets=projets,
-                    categories=categories, sous_categories=sous_categories, clients=clients,
-                )
-            vente.client_id = client.id
-            vente.client_nom = client.nom
-        else:
-            vente.client_id = None
-            vente.client_nom = (request.form.get("client_nom") or "").strip() or None
-        vente.commentaire = (request.form.get("commentaire") or "").strip() or None
+        lignes_data = {}
+        for ligne in vente.lignes:
+            quantite = request.form.get(f"quantite_{ligne.id}", type=int)
+            if quantite is not None:
+                lignes_data[ligne.id] = {"quantite": quantite}
+
+        nouvelle_ligne_data = None
+        nouveau_produit_id = request.form.get("nouveau_produit_id", type=int)
+        if nouveau_produit_id:
+            nouvelle_ligne_data = {
+                "produit_id": nouveau_produit_id,
+                "quantite": request.form.get("nouvelle_quantite", type=int),
+                "prix_unitaire": request.form.get("nouveau_prix_unitaire", type=int),
+            }
+
+        paiements_data = []
+        for moyen_id, montant in zip(
+            request.form.getlist("paiement_moyen_paiement_id"), request.form.getlist("paiement_montant")
+        ):
+            paiements_data.append({"moyen_paiement_id": int(moyen_id) if moyen_id else None, "montant": montant})
+
+        data = {
+            "client_id": request.form.get("client_id", type=int),
+            "client_nom": request.form.get("client_nom"),
+            "commentaire": request.form.get("commentaire"),
+            "lignes": lignes_data,
+            "nouvelle_ligne": nouvelle_ligne_data,
+            "paiements": paiements_data,
+            "a_credit": bool(request.form.get("a_credit")),
+        }
+        motif = (request.form.get("motif") or "").strip()
+
+        try:
+            corriger_vente(vente, data, motif, current_user)
+        except VenteError as exc:
+            db.session.rollback()
+            flash(str(exc), "error")
+            return render_template("pos/vente_modifier.html", **_vente_modifier_contexte(vente))
 
         for ligne in vente.lignes:
             poste_id = request.form.get(f"poste_id_{ligne.id}", type=int)
@@ -320,12 +354,9 @@ def vente_modifier(vente_id):
             ligne.sous_categorie_id = sous_categorie_id if sous_categorie_id else None
             ligne.projet_id = projet_id if projet_id else None
 
-        log_audit(current_app, "vente_classement_corrige", f"Vente #{vente.id}", current_user)
+        log_audit(current_app, "vente_corrigee", f"Vente #{vente.id} — {motif}", current_user)
         db.session.commit()
-        flash("Classement de la vente mis à jour.", "info")
+        flash("Vente corrigée.", "info")
         return redirect(url_for("pos.recu", vente_id=vente.id))
 
-    return render_template(
-        "pos/vente_modifier.html", vente=vente, postes=postes, projets=projets,
-        categories=categories, sous_categories=sous_categories, clients=clients,
-    )
+    return render_template("pos/vente_modifier.html", **_vente_modifier_contexte(vente))

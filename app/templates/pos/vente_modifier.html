@@ -6,10 +6,10 @@
   Ticket #{{ vente.id }}
 </a>
 <header class="mb-6">
-  <h2 class="font-headline-lg text-headline-lg text-on-surface">Corriger le classement — Vente #{{ vente.id }}</h2>
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Corriger la vente #{{ vente.id }}</h2>
   <p class="font-body-md text-body-md text-on-surface-variant mt-1">
-    Corrige uniquement le client et le classement comptable (poste, catégorie, projet) — jamais la quantité, le
-    prix, le produit ou le paiement déjà enregistrés. Pour ces derniers, annulez la vente depuis le ticket.
+    Client, classement comptable, quantités/articles et moyen(s) de paiement. Pour faire disparaître entièrement
+    cette vente, annulez-la plutôt depuis le ticket.
   </p>
 </header>
 
@@ -37,10 +37,17 @@
   </div>
 
   <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col gap-4">
-    <h3 class="font-label-md text-label-md text-on-surface">Classement par article</h3>
+    <h3 class="font-label-md text-label-md text-on-surface">Articles</h3>
     {% for ligne in vente.lignes %}
     <div class="border border-outline-variant/30 rounded-xl p-4">
-      <p class="font-label-md text-label-md text-on-surface mb-3">{{ ligne.quantite }} × {{ ligne.produit_nom }}</p>
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <p class="font-label-md text-label-md text-on-surface">{{ ligne.produit_nom }}</p>
+        <div class="flex items-center gap-2">
+          <label class="font-body-md text-xs text-on-surface-variant">Quantité</label>
+          <input type="number" min="0" name="quantite_{{ ligne.id }}" value="{{ ligne.quantite }}" class="w-20 h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm text-right">
+        </div>
+      </div>
+      <p class="font-body-md text-xs text-on-surface-variant mb-3">Mettre la quantité à 0 supprime la ligne (stock rétabli).</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block font-body-md text-xs text-on-surface-variant mb-1">Poste</label>
@@ -79,6 +86,65 @@
       </div>
     </div>
     {% endfor %}
+
+    <div class="border border-dashed border-outline-variant rounded-xl p-4">
+      <p class="font-label-md text-label-md text-on-surface mb-3">Ajouter un article oublié (facultatif)</p>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="col-span-3 sm:col-span-1">
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Produit</label>
+          <select name="nouveau_produit_id" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+            <option value="0">—</option>
+            {% for p in produits %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Quantité</label>
+          <input type="number" min="1" name="nouvelle_quantite" value="1" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm text-right">
+        </div>
+        <div>
+          <label class="block font-body-md text-xs text-on-surface-variant mb-1">Prix unitaire (si prix libre)</label>
+          <input type="number" min="0" name="nouveau_prix_unitaire" class="w-full h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm text-right">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30 flex flex-col gap-4">
+    <h3 class="font-label-md text-label-md text-on-surface">Moyen(s) de paiement</h3>
+    <p class="font-body-md text-xs text-on-surface-variant -mt-2">
+      Le total payé ci-dessous doit correspondre au total du ticket ({{ "{:,}".format(vente.total).replace(",", " ") }}),
+      sauf vente à crédit.
+    </p>
+    {% for paiement in vente.paiements %}
+    <div class="flex items-center gap-3">
+      <select name="paiement_moyen_paiement_id" class="flex-1 h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+        {% for m in moyens_paiement %}
+        <option value="{{ m.id }}" {% if paiement.moyen_paiement_id == m.id %}selected{% endif %}>{{ m.name }} — {{ m.compte_financier.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" min="0" name="paiement_montant" value="{{ paiement.montant }}" class="w-32 h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm text-right">
+    </div>
+    {% endfor %}
+    <div class="flex items-center gap-3">
+      <select name="paiement_moyen_paiement_id" class="flex-1 h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm">
+        <option value="">— Ajouter un moyen de paiement —</option>
+        {% for m in moyens_paiement %}
+        <option value="{{ m.id }}">{{ m.name }} — {{ m.compte_financier.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" min="0" name="paiement_montant" placeholder="0" class="w-32 h-11 px-3 bg-surface border border-outline-variant rounded-xl text-sm text-right">
+    </div>
+    <label class="flex items-center gap-2 font-body-md text-sm text-on-surface-variant">
+      <input type="checkbox" name="a_credit" value="1" {% if vente.montant_credit %}checked{% endif %} class="w-5 h-5 rounded border-outline-variant">
+      Vente à crédit (nécessite un client enregistré) pour la part non couverte par les paiements ci-dessus
+    </label>
+  </div>
+
+  <div class="bg-surface-container-lowest rounded-2xl p-6 ambient-shadow border border-outline-variant/30">
+    <label class="block font-label-md text-label-md text-on-surface mb-1">Motif de la correction (obligatoire)</label>
+    <input type="text" name="motif" required placeholder="Ex. : erreur de moyen de paiement, quantité mal saisie..." class="w-full h-touch-target-min px-4 bg-surface border border-outline-variant rounded-xl">
   </div>
 
   <div class="flex gap-3">

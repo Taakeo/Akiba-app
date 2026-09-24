@@ -1,0 +1,43 @@
+{% extends "_app_shell.html" %}
+{% block title %}AKIBA APP - Historique des sessions de caisse{% endblock %}
+{% block shell_content %}
+<a href="{{ url_for('caisse.pdv') }}" class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mb-6">
+  <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+  Caisse du Point de Vente
+</a>
+
+<header class="mb-6">
+  <h2 class="font-headline-lg text-headline-lg text-on-surface">Historique des sessions de caisse</h2>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-1">Retrouvez le rapport complet de n'importe quelle session, ouverte ou déjà clôturée.</p>
+</header>
+
+<div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
+  {% for session in items %}
+  <a href="{{ url_for('caisse.session_rapport', session_id=session.id) }}" class="flex items-center justify-between p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} hover:bg-surface-container-low transition-colors">
+    <div class="flex items-center gap-4">
+      <div class="w-11 h-11 rounded-full flex items-center justify-center {% if session.statut == 'ouverte' %}bg-secondary-container text-on-secondary-container{% else %}bg-surface-container text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">{{ "lock_open" if session.statut == "ouverte" else "lock" }}</span>
+      </div>
+      <div>
+        <p class="font-label-md text-label-md text-on-surface">
+          Session #{{ session.id }}
+          {% if session.statut == "ouverte" %}<span class="ml-2 bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full font-label-md text-[11px]">Ouverte</span>{% endif %}
+        </p>
+        <p class="font-body-md text-xs text-on-surface-variant mt-1">
+          Ouverte le {{ session.ouverte_le.strftime('%d/%m/%Y %H:%M') }} par {{ session.ouverte_par_nom }}
+          {% if session.fermee_le %} · fermée le {{ session.fermee_le.strftime('%d/%m/%Y %H:%M') }} par {{ session.fermee_par_nom }}{% endif %}
+        </p>
+      </div>
+    </div>
+    {% if session.statut == "fermee" %}
+    <div class="text-right">
+      <span class="font-headline-md text-body-lg font-bold text-on-surface">{{ "{:,}".format(session.fond_reel or 0).replace(",", " ") }}</span>
+      {% if session.ecart %}<p class="font-body-md text-xs {% if session.ecart < 0 %}text-error{% else %}text-on-surface-variant{% endif %}">écart {{ "%+d"|format(session.ecart) }}</p>{% endif %}
+    </div>
+    {% endif %}
+  </a>
+  {% else %}
+  <p class="p-6 font-body-md text-body-md text-on-surface-variant">Aucune session de caisse enregistrée.</p>
+  {% endfor %}
+</div>
+{% endblock %}

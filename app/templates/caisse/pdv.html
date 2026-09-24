@@ -7,7 +7,7 @@
   <main class="flex-1 ml-20 p-gutter md:p-container-margin min-h-screen overflow-y-auto">
 <header class="mb-8">
   <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Caisse du Point de Vente</h2>
-  <p class="font-body-md text-body-md text-on-surface-variant mt-2">Ouverture, clôture et entrées-sorties d'argent de ce poste. Pour la vue d'ensemble de tous les comptes d'Akiba, voir <a href="{{ url_for('caisse.status') }}" class="text-primary underline">Comptes</a>.</p>
+  <p class="font-body-md text-body-md text-on-surface-variant mt-2">Ouverture, clôture et entrées-sorties d'argent de ce poste. Pour la vue d'ensemble de tous les comptes d'Akiba, voir <a href="{{ url_for('caisse.status') }}" class="text-primary underline">Comptes</a>. Pour le rapport détaillé d'une session (ouverte ou passée), voir <a href="{{ url_for('caisse.sessions') }}" class="text-primary underline">Historique des sessions</a>.</p>
 </header>
 
 {% if session %}
@@ -57,13 +57,14 @@
     <div class="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow border border-outline-variant/30">
       <p class="font-label-md text-label-md text-on-surface-variant mb-1 truncate" title="{{ r.moyen.name }}">{{ r.moyen.name }}</p>
       <p class="font-headline-md text-headline-md text-on-surface">{{ "{:,}".format(r.total).replace(",", " ") }} <span class="text-sm font-normal text-on-surface-variant">{{ r.compte.devise }}</span></p>
-      {% if r.fond_ouverture or r.encaissements_ventes or r.entrees or r.sorties or r.achats %}
+      {% if r.fond_ouverture or r.encaissements_ventes or r.entrees or r.sorties or r.achats or r.remunerations %}
       <p class="font-body-md text-xs text-on-surface-variant mt-1">
         {% if r.fond_ouverture %}Fond initial {{ "{:,}".format(r.fond_ouverture).replace(",", " ") }}{% endif %}
         {% if r.encaissements_ventes %} · Ventes {{ "{:,}".format(r.encaissements_ventes).replace(",", " ") }}{% endif %}
         {% if r.entrees %} · Entrées {{ "{:,}".format(r.entrees).replace(",", " ") }}{% endif %}
         {% if r.sorties %} · Sorties -{{ "{:,}".format(r.sorties).replace(",", " ") }}{% endif %}
         {% if r.achats %} · Achats -{{ "{:,}".format(r.achats).replace(",", " ") }}{% endif %}
+        {% if r.remunerations %} · RH -{{ "{:,}".format(r.remunerations).replace(",", " ") }}{% endif %}
       </p>
       {% endif %}
     </div>

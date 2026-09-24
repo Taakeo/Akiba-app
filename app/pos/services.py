@@ -1,6 +1,7 @@
 from ..caisse.services import crediter_compte, debiter_compte
 from ..extensions import db
 from ..models import Client, LigneVente, MoyenPaiement, Produit, TypeTarif, Vente, VentePaiement, enregistrer_mouvement
+from ..models.finance import utcnow
 
 
 class VenteError(ValueError):
@@ -209,5 +210,185 @@ def annuler_vente(vente, motif, current_user):
         f"[ANNULÉE] {motif.strip()} — par {current_user.full_name}"
         + (f"\n{vente.commentaire}" if vente.commentaire else "")
     )
+    vente.annule_motif = motif.strip()
+    vente.annule_par_nom = current_user.full_name
+    vente.annule_le = utcnow()
+    db.session.commit()
+    return vente
+
+
+def corriger_vente(vente, data, motif, current_user):
+    """Corrige une vente déjà validée sans passer par une annulation : lignes
+    (quantité, ajout, suppression), moyen(s) de paiement, montant payé et
+    client — le point le plus fréquent restant l'erreur de moyen de paiement
+    (retour utilisateur : "encaissé en espèces alors que le client a payé par
+    banque"), sans devoir refaire tout le ticket.
+
+    Reprend l'ancien impact stock/comptes financiers/crédit ligne par ligne,
+    puis applique le nouveau — même principe qu'annuler_vente() +
+    enregistrer_vente() combinés, mais en conservant le même Vente.id (donc
+    la même place dans l'historique client et les rapports) plutôt que
+    d'annuler et recréer un ticket. Un motif est obligatoire, comme pour
+    toute correction sensible (§ droit "corrections")."""
+    if vente.statut != "validee":
+        raise VenteError("Cette vente est annulée — elle ne peut pas être corrigée.")
+    if not motif or not motif.strip():
+        raise VenteError("Un motif est obligatoire pour corriger une vente.")
+
+    # Une vente à crédit déjà partiellement remboursée ne peut pas être
+    # recalculée automatiquement (même garde-fou qu'annuler_vente : un
+    # reversal FIFO partiel désynchroniserait le crédit d'autres ventes du
+    # même client).
+    if vente.montant_credit > 0 and vente.credit_solde_restant < vente.montant_credit:
+        raise VenteError(
+            "Cette vente à crédit a déjà commencé à être remboursée — "
+            "seul le classement (poste, catégorie, projet) peut encore être corrigé."
+        )
+
+    ancien_client = vente.client
+
+    # --- Client -----------------------------------------------------------
+    client = None
+    client_id = data.get("client_id")
+    if client_id:
+        client = db.session.get(Client, client_id)
+        if client is None or client.is_archived:
+            raise VenteError("Client invalide.")
+        vente.client_id = client.id
+        vente.client_nom = client.nom
+    else:
+        vente.client_id = None
+        vente.client_nom = (data.get("client_nom") or "").strip() or None
+
+    vente.commentaire = (data.get("commentaire") or "").strip() or None
+
+    # --- Lignes : quantité modifiée, ligne supprimée, ligne ajoutée --------
+    # Chaque écart de quantité (existant vs nouveau) reçoit son propre
+    # mouvement de stock inverse/complémentaire — jamais un simple recalcul
+    # du stock affiché, pour garder la même traçabilité (MouvementStock)
+    # qu'une vente ou une annulation normale.
+    sous_total = 0
+    for ligne in list(vente.lignes):
+        ligne_data = (data.get("lignes") or {}).get(ligne.id)
+        if ligne_data is None:
+            sous_total += ligne.total_ligne
+            continue
+
+        nouvelle_quantite = int(ligne_data.get("quantite", ligne.quantite) or 0)
+        if nouvelle_quantite < 1:
+            # Suppression de la ligne : tout le stock qu'elle avait décrémenté est restitué.
+            produit = ligne.produit
+            if produit is not None and not produit.stock_illimite:
+                enregistrer_mouvement(
+                    produit, "entree", "correction", ligne.quantite, current_user,
+                    commentaire=f"Correction vente #{vente.id} — ligne supprimée",
+                    reference_type="vente", reference_id=vente.id,
+                )
+            vente.lignes.remove(ligne)
+            continue
+
+        if nouvelle_quantite != ligne.quantite:
+            produit = ligne.produit
+            ecart = nouvelle_quantite - ligne.quantite
+            if produit is not None and not produit.stock_illimite:
+                enregistrer_mouvement(
+                    produit, "sortie" if ecart > 0 else "entree", "correction", abs(ecart), current_user,
+                    commentaire=f"Correction vente #{vente.id} — quantité {ligne.quantite} → {nouvelle_quantite}",
+                    reference_type="vente", reference_id=vente.id,
+                )
+            ligne.quantite = nouvelle_quantite
+
+        ligne.calculer_total()
+        sous_total += ligne.total_ligne
+
+    nouvelle_ligne_data = data.get("nouvelle_ligne")
+    if nouvelle_ligne_data and nouvelle_ligne_data.get("produit_id"):
+        produit = db.session.get(Produit, nouvelle_ligne_data.get("produit_id"))
+        if produit is None or produit.is_archived:
+            raise VenteError("Produit invalide pour la ligne ajoutée.")
+        quantite = int(nouvelle_ligne_data.get("quantite") or 0)
+        if quantite < 1:
+            raise VenteError("Quantité invalide pour la ligne ajoutée.")
+
+        if produit.prix_libre:
+            prix_unitaire = int(nouvelle_ligne_data.get("prix_unitaire") or 0)
+            if prix_unitaire <= 0:
+                raise VenteError(f"Montant invalide pour {produit.name}.")
+        else:
+            prix_unitaire = produit.prix_pour(vente.type_tarif.code)
+            if prix_unitaire is None:
+                raise VenteError(f"Aucun tarif {vente.type_tarif.label} pour {produit.name}.")
+
+        ligne = LigneVente(
+            produit_id=produit.id, produit_nom=produit.name, poste_id=produit.poste_id,
+            projet_id=produit.projet_id, categorie_id=produit.categorie_id,
+            sous_categorie_id=produit.sous_categorie_id, quantite=quantite, prix_unitaire=prix_unitaire,
+        )
+        ligne.calculer_total()
+        sous_total += ligne.total_ligne
+        if not produit.stock_illimite:
+            enregistrer_mouvement(
+                produit, "sortie", "vente", quantite, current_user,
+                commentaire=f"Correction vente #{vente.id} — ligne ajoutée",
+                reference_type="vente", reference_id=vente.id,
+            )
+        vente.lignes.append(ligne)
+
+    if not vente.lignes:
+        raise VenteError("Une vente ne peut pas rester vide — annulez-la plutôt que de supprimer toutes ses lignes.")
+
+    total = max(0, sous_total - vente.remise)
+    vente.sous_total = sous_total
+    vente.total = total
+
+    # --- Crédit client : reprise de l'ancien impact avant nouveau calcul ---
+    if vente.montant_credit > 0 and ancien_client is not None:
+        ancien_client.solde_credit -= vente.credit_solde_restant
+    vente.montant_credit = 0
+    vente.credit_solde_restant = 0
+
+    # --- Paiements : repris intégralement puis réappliqués -----------------
+    # Le point le plus fréquent (retour utilisateur) : corriger uniquement le
+    # moyen de paiement d'une vente déjà encaissée (ex. "espèces" saisi par
+    # erreur au lieu de "banque"), sans toucher au reste du ticket.
+    for paiement in list(vente.paiements):
+        debiter_compte(paiement.moyen_paiement.compte_financier, paiement.montant)
+        vente.paiements.remove(paiement)
+
+    paiements_data = data.get("paiements") or []
+    a_credit = bool(data.get("a_credit"))
+    if a_credit and client is None:
+        raise VenteError("La vente à crédit nécessite un client enregistré.")
+
+    total_paye = 0
+    paiement_devise_etrangere = False
+    for paiement_data in paiements_data:
+        montant = int(paiement_data.get("montant") or 0)
+        if montant <= 0:
+            continue
+        moyen = db.session.get(MoyenPaiement, paiement_data.get("moyen_paiement_id"))
+        if moyen is None or moyen.is_archived:
+            raise VenteError("Moyen de paiement invalide.")
+        vente.paiements.append(VentePaiement(moyen_paiement_id=moyen.id, montant=montant))
+        crediter_compte(moyen.compte_financier, montant)
+        if moyen.compte_financier.devise == "Ar":
+            total_paye += montant
+        else:
+            paiement_devise_etrangere = True
+
+    montant_restant = 0 if paiement_devise_etrangere else total - total_paye
+    if montant_restant > 0:
+        if not a_credit:
+            raise VenteError(f"Le total payé ({total_paye}) ne correspond pas au total du ticket ({total}).")
+        vente.montant_credit = montant_restant
+        vente.credit_solde_restant = montant_restant
+        client.solde_credit += montant_restant
+    elif montant_restant < 0:
+        raise VenteError(f"Le total payé ({total_paye}) dépasse le total du ticket ({total}).")
+
+    vente.derniere_correction_motif = motif.strip()
+    vente.derniere_correction_par_nom = current_user.full_name
+    vente.derniere_correction_le = utcnow()
+
     db.session.commit()
     return vente

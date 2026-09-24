@@ -231,19 +231,19 @@
 
       const wrap = document.createElement("div");
       wrap.className =
-        "flex items-center shrink-0 rounded-full mr-1 mb-2 " +
+        "flex items-center shrink-0 rounded-full mr-1 mb-1.5 " +
         (active ? "bg-primary-container" : "bg-surface-container hover:bg-surface-variant");
       wrap.innerHTML = `
-        <button type="button" data-action="select" class="pl-4 pr-1 h-10 flex items-center gap-1.5 font-label-md text-label-md whitespace-nowrap ${active ? "text-on-primary-container font-bold" : "text-on-surface-variant"}">
-          <span class="material-symbols-outlined text-[16px]">receipt_long</span>
+        <button type="button" data-action="select" class="pl-3 pr-1 h-8 flex items-center gap-1 font-label-md text-xs whitespace-nowrap ${active ? "text-on-primary-container font-bold" : "text-on-surface-variant"}">
+          <span class="material-symbols-outlined text-[14px]">receipt_long</span>
           ${escapeHtml(ticket.nom)}
-          ${ticket.cart.length ? `<span class="text-xs opacity-70">(${formatMontant(total)})</span>` : ""}
+          ${ticket.cart.length ? `<span class="text-[10px] opacity-70">(${formatMontant(total)})</span>` : ""}
         </button>
-        <button type="button" data-action="rename" class="w-8 h-10 flex items-center justify-center opacity-60 hover:opacity-100" title="Renommer le ticket">
-          <span class="material-symbols-outlined text-[16px]">edit</span>
+        <button type="button" data-action="rename" class="w-6 h-8 flex items-center justify-center opacity-60 hover:opacity-100" title="Renommer le ticket">
+          <span class="material-symbols-outlined text-[14px]">edit</span>
         </button>
-        <button type="button" data-action="close" class="w-8 h-10 mr-1 flex items-center justify-center opacity-60 hover:opacity-100 hover:text-error" title="Fermer le ticket">
-          <span class="material-symbols-outlined text-[16px]">close</span>
+        <button type="button" data-action="close" class="w-6 h-8 mr-1 flex items-center justify-center opacity-60 hover:opacity-100 hover:text-error" title="Fermer le ticket">
+          <span class="material-symbols-outlined text-[14px]">close</span>
         </button>`;
 
       wrap.querySelector('[data-action="select"]').addEventListener("click", () => selectTicket(index));
@@ -256,8 +256,8 @@
     addBtn.type = "button";
     addBtn.title = "Nouveau ticket";
     addBtn.className =
-      "shrink-0 w-10 h-10 mb-2 flex items-center justify-center rounded-full text-primary hover:bg-primary-container/40";
-    addBtn.innerHTML = '<span class="material-symbols-outlined">add</span>';
+      "shrink-0 w-8 h-8 mb-1.5 flex items-center justify-center rounded-full text-primary hover:bg-primary-container/40";
+    addBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">add</span>';
     addBtn.addEventListener("click", addTicket);
     ticketTabs.appendChild(addBtn);
   }
@@ -400,13 +400,13 @@
       const prixLabel = p.prixLibre ? "Prix libre" : prix == null ? "—" : formatMontant(prix);
 
       btn.innerHTML = `
-        <div class="h-24 w-full bg-surface-container-low flex items-center justify-center text-outline-variant relative overflow-hidden">
+        <div class="h-14 w-full bg-surface-container-low flex items-center justify-center text-outline-variant relative overflow-hidden">
           ${imageContent}
-          <div class="absolute top-2 right-2 bg-surface/90 px-2 py-1 rounded-lg font-label-md text-xs text-on-surface font-bold">${prixLabel}</div>
+          <div class="absolute top-1 right-1 bg-surface/90 px-1.5 py-0.5 rounded-lg font-label-md text-[11px] text-on-surface font-bold">${prixLabel}</div>
         </div>
-        <div class="p-3 flex flex-col items-start flex-1 w-full">
-          <span class="font-label-md text-label-md text-on-surface line-clamp-2 mb-1">${p.name}</span>
-          <span class="font-body-md text-xs text-on-surface-variant mt-auto flex items-center gap-1">${stockLabel}</span>
+        <div class="p-1.5 flex flex-col items-start flex-1 w-full">
+          <span class="font-label-md text-xs text-on-surface line-clamp-2 mb-0.5">${p.name}</span>
+          <span class="font-body-md text-[10px] text-on-surface-variant mt-auto flex items-center gap-1">${stockLabel}</span>
         </div>`;
 
       if (!indisponible) {
@@ -426,8 +426,8 @@
         editBtn.type = "button";
         editBtn.title = "Modifier la fiche produit";
         editBtn.className =
-          "absolute top-2 left-2 w-8 h-8 rounded-full bg-surface/90 flex items-center justify-center text-on-surface-variant hover:text-primary";
-        editBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">edit</span>`;
+          "absolute top-1 left-1 w-6 h-6 rounded-full bg-surface/90 flex items-center justify-center text-on-surface-variant hover:text-primary";
+        editBtn.innerHTML = `<span class="material-symbols-outlined text-[14px]">edit</span>`;
         editBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           window.location.href = p.editUrl;
@@ -497,39 +497,39 @@
       sousTotal += ligneTotal;
 
       const li = document.createElement("li");
-      li.className = "bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-3";
+      li.className = "bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-2";
       li.innerHTML = `
-        <div class="flex justify-between items-start mb-2 gap-2">
-          <span class="font-label-md text-label-md text-on-surface leading-tight">${line.name}${line.offert ? " (offert)" : ""}</span>
-          <span class="font-label-md text-label-md font-bold text-on-surface whitespace-nowrap">${formatMontant(ligneTotal)}</span>
+        <div class="flex justify-between items-start mb-1 gap-2">
+          <span class="font-label-md text-xs text-on-surface leading-tight">${line.name}${line.offert ? " (offert)" : ""}</span>
+          <span class="font-label-md text-xs font-bold text-on-surface whitespace-nowrap">${formatMontant(ligneTotal)}</span>
         </div>
-        <div class="flex items-center justify-between mb-2">
-          <span class="font-body-md text-xs text-on-surface-variant">${formatMontant(line.prixUnitaire)} / u</span>
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-body-md text-[11px] text-on-surface-variant">${formatMontant(line.prixUnitaire)} / u</span>
           ${
             line.remise > 0
-              ? `<span class="font-body-md text-xs text-primary font-bold">-${formatMontant(line.remise)} remise</span>`
+              ? `<span class="font-body-md text-[11px] text-primary font-bold">-${formatMontant(line.remise)} remise</span>`
               : ""
           }
         </div>
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center bg-surface-container rounded-full border border-outline-variant/20">
-            <button data-action="dec" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-l-full text-on-surface-variant active:bg-outline-variant/30">
-              <span class="material-symbols-outlined">remove</span>
+            <button data-action="dec" class="w-8 h-8 flex items-center justify-center rounded-l-full text-on-surface-variant active:bg-outline-variant/30">
+              <span class="material-symbols-outlined text-[18px]">remove</span>
             </button>
-            <button type="button" data-action="qty" class="w-10 text-center font-label-md text-body-md" title="Saisir une quantité">${line.quantite}</button>
-            <button data-action="inc" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-r-full text-on-surface-variant active:bg-outline-variant/30">
-              <span class="material-symbols-outlined">add</span>
+            <button type="button" data-action="qty" class="w-8 text-center font-label-md text-xs" title="Saisir une quantité">${line.quantite}</button>
+            <button data-action="inc" class="w-8 h-8 flex items-center justify-center rounded-r-full text-on-surface-variant active:bg-outline-variant/30">
+              <span class="material-symbols-outlined text-[18px]">add</span>
             </button>
           </div>
-          <div class="flex items-center gap-2">
-            <button data-action="remise" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full ${line.remise > 0 ? "text-primary" : "text-on-surface-variant"} active:bg-surface-variant" title="Remise sur cet article">
-              <span class="material-symbols-outlined text-[20px]">sell</span>
+          <div class="flex items-center gap-1">
+            <button data-action="remise" class="w-8 h-8 flex items-center justify-center rounded-full ${line.remise > 0 ? "text-primary" : "text-on-surface-variant"} active:bg-surface-variant" title="Remise sur cet article">
+              <span class="material-symbols-outlined text-[16px]">sell</span>
             </button>
-            <button data-action="offrir" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full text-on-surface-variant active:bg-surface-variant" title="Offrir">
-              <span class="material-symbols-outlined text-[20px]">redeem</span>
+            <button data-action="offrir" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant active:bg-surface-variant" title="Offrir">
+              <span class="material-symbols-outlined text-[16px]">redeem</span>
             </button>
-            <button data-action="remove" class="w-touch-target-min h-touch-target-min flex items-center justify-center rounded-full text-error active:bg-error-container" title="Supprimer">
-              <span class="material-symbols-outlined text-[20px]">close</span>
+            <button data-action="remove" class="w-8 h-8 flex items-center justify-center rounded-full text-error active:bg-error-container" title="Supprimer">
+              <span class="material-symbols-outlined text-[16px]">close</span>
             </button>
           </div>
         </div>`;

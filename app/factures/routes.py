@@ -3,10 +3,10 @@ from flask_login import current_user
 
 from ..auth.decorators import permission_required, permission_required_any
 from ..extensions import db
-from ..models import Client, Facture, Vente
+from ..models import Client, Facture, Vente, VenteExterne
 from . import bp
 from .pdf import generer_facture_pdf
-from .services import FactureError, generer_facture
+from .services import FactureError, generer_facture, generer_facture_externe
 
 
 @bp.route("/depuis-vente/<int:vente_id>", methods=["POST"])
@@ -51,8 +51,50 @@ def depuis_client(client_id):
     return redirect(url_for("factures.voir", facture_id=facture.id))
 
 
+@bp.route("/depuis-vente-externe/<int:vente_externe_id>", methods=["POST"])
+@permission_required("ventes_externes")
+def depuis_vente_externe(vente_externe_id):
+    vente_externe = db.session.get(VenteExterne, vente_externe_id)
+    if vente_externe is None:
+        abort(404)
+    if vente_externe.client_id is None:
+        flash("Une facture officielle nécessite un client enregistré (pas un client de passage).", "error")
+        return redirect(url_for("ventes_externes.index"))
+
+    client = db.session.get(Client, vente_externe.client_id)
+    try:
+        facture = generer_facture_externe(client, [vente_externe], current_user)
+    except FactureError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("ventes_externes.index"))
+
+    flash(f"Facture {facture.numero} créée.", "info")
+    return redirect(url_for("factures.voir", facture_id=facture.id))
+
+
+@bp.route("/depuis-client-externe/<int:client_id>", methods=["POST"])
+@permission_required("ventes_externes")
+def depuis_client_externe(client_id):
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
+
+    vente_externe_ids = [int(v) for v in request.form.getlist("vente_externe_ids")]
+    ventes_externes = [db.session.get(VenteExterne, vid) for vid in vente_externe_ids]
+    ventes_externes = [v for v in ventes_externes if v is not None]
+
+    try:
+        facture = generer_facture_externe(client, ventes_externes, current_user)
+    except FactureError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("clients.fiche", client_id=client.id))
+
+    flash(f"Facture {facture.numero} créée.", "info")
+    return redirect(url_for("factures.voir", facture_id=facture.id))
+
+
 @bp.route("/<int:facture_id>")
-@permission_required_any("point_de_vente", "clients")
+@permission_required_any("point_de_vente", "clients", "ventes_externes")
 def voir(facture_id):
     facture = db.session.get(Facture, facture_id)
     if facture is None:
@@ -61,7 +103,7 @@ def voir(facture_id):
 
 
 @bp.route("/<int:facture_id>/pdf")
-@permission_required_any("point_de_vente", "clients")
+@permission_required_any("point_de_vente", "clients", "ventes_externes")
 def telecharger(facture_id):
     facture = db.session.get(Facture, facture_id)
     if facture is None:

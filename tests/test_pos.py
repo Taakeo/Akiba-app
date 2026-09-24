@@ -692,6 +692,10 @@ def test_vente_modifier_corrige_le_classement_sans_toucher_stock_ni_montant(clie
             f"categorie_id_{ligne.id}": str(autre_categorie.id),
             f"sous_categorie_id_{ligne.id}": "0",
             f"projet_id_{ligne.id}": "0",
+            f"quantite_{ligne.id}": str(ligne.quantite),
+            "paiement_moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+            "paiement_montant": str(total_avant),
+            "motif": "Reclassement comptable",
         },
     )
     assert resp.status_code == 302
@@ -707,3 +711,95 @@ def test_vente_modifier_corrige_le_classement_sans_toucher_stock_ni_montant(clie
     # Jamais touché par cette correction :
     assert vente.total == total_avant
     assert produit_apres.stock_quantite == stock_avant
+    assert vente.derniere_correction_motif == "Reclassement comptable"
+    assert vente.derniere_correction_par_nom
+
+
+def test_vente_modifier_corrige_le_moyen_de_paiement(client, login_admin, catalogue, db):
+    """Le point le plus fréquent (retour utilisateur) : une vente encaissée
+    par erreur en espèces alors que le client a payé par banque — la
+    correction doit reprendre l'ancien compte et créditer le bon, sans
+    toucher au reste du ticket."""
+    from app.models import CompteFinancier, MoyenPaiement, Vente
+
+    banque = CompteFinancier(name="Compte Banque", devise="Ar")
+    db.session.add(banque)
+    db.session.flush()
+    moyen_banque = MoyenPaiement(name="Virement banque", compte_financier_id=banque.id)
+    db.session.add(moyen_banque)
+    db.session.commit()
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = int(response.get_json()["redirect"].split("/")[-1].split("?")[0])
+
+    caisse = db.session.get(CompteFinancier, catalogue["caisse_id"])
+    solde_caisse_avant = caisse.solde
+    solde_banque_avant = banque.solde
+
+    resp = client.post(
+        f"/pos/vente/{vente_id}/modifier",
+        data={
+            "client_id": "0",
+            "paiement_moyen_paiement_id": str(moyen_banque.id),
+            "paiement_montant": "8000",
+            "motif": "Erreur de moyen de paiement — payé par banque",
+        },
+    )
+    assert resp.status_code == 302
+
+    vente = db.session.get(Vente, vente_id)
+    db.session.refresh(caisse)
+    db.session.refresh(banque)
+
+    assert vente.total == 8000
+    assert len(vente.paiements) == 1
+    assert vente.paiements[0].moyen_paiement_id == moyen_banque.id
+    assert caisse.solde == solde_caisse_avant - 8000
+    assert banque.solde == solde_banque_avant + 8000
+
+
+def test_vente_modifier_change_quantite_ajuste_stock_et_exige_paiement_a_jour(client, login_admin, catalogue, db):
+    from app.models import Produit, Vente
+
+    client.post("/caisse/ouverture", data={"fond_ouverture": "0"})
+    response = client.post("/pos/vente", json=_checkout_payload(catalogue, quantite=1))
+    vente_id = int(response.get_json()["redirect"].split("/")[-1].split("?")[0])
+
+    vente = db.session.get(Vente, vente_id)
+    ligne = vente.lignes[0]
+    stock_avant = db.session.get(Produit, catalogue["produit_id"]).stock_quantite
+
+    # Refus si le paiement soumis ne correspond plus au nouveau total.
+    resp = client.post(
+        f"/pos/vente/{vente_id}/modifier",
+        data={
+            "client_id": "0",
+            f"quantite_{ligne.id}": "2",
+            "paiement_moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+            "paiement_montant": "8000",
+            "motif": "Quantité mal saisie",
+        },
+    )
+    assert resp.status_code == 200
+    db.session.refresh(vente)
+    assert vente.total == 8000  # inchangé, la correction a échoué
+
+    resp = client.post(
+        f"/pos/vente/{vente_id}/modifier",
+        data={
+            "client_id": "0",
+            f"quantite_{ligne.id}": "2",
+            "paiement_moyen_paiement_id": str(catalogue["moyen_paiement_id"]),
+            "paiement_montant": "16000",
+            "motif": "Quantité mal saisie",
+        },
+    )
+    assert resp.status_code == 302
+
+    db.session.refresh(vente)
+    db.session.refresh(ligne)
+    produit = db.session.get(Produit, catalogue["produit_id"])
+    assert ligne.quantite == 2
+    assert vente.total == 16000
+    assert produit.stock_quantite == stock_avant - 1  # un article de plus décrémenté

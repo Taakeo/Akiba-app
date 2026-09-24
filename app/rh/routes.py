@@ -6,7 +6,7 @@ from flask_login import current_user
 from ..admin.backup_service import log_audit
 from ..admin.import_excel import generer_modele_salaries_xlsx, importer_salaries_excel
 from ..auth.decorators import permission_required
-from ..caisse.services import crediter_compte, debiter_compte, montant_depuis_ariary
+from ..caisse.services import crediter_compte, debiter_compte, get_caisse_compte, get_open_session, montant_depuis_ariary
 from ..extensions import db
 from ..models import (
     Absence,
@@ -235,8 +235,20 @@ def ajouter_remuneration(salarie_id):
     if form.validate_on_submit():
         moyen = db.session.get(MoyenPaiement, form.moyen_paiement_id.data) if form.moyen_paiement_id.data else None
 
+        # Rattache le versement à la session de caisse en cours seulement s'il
+        # est payé en espèces depuis la caisse physique — sert à le déduire du
+        # théorique du tiroir et à le faire apparaître dans le résumé/rapport
+        # de session, exactement comme un achat (achats/routes.py::nouveau).
+        caisse_session_id = None
+        if moyen is not None:
+            session_caisse = get_open_session()
+            caisse_compte = get_caisse_compte()
+            if session_caisse and caisse_compte and moyen.compte_financier_id == caisse_compte.id:
+                caisse_session_id = session_caisse.id
+
         remuneration = RemunerationSalarie(
             salarie_id=salarie.id,
+            caisse_session_id=caisse_session_id,
             type_remuneration=form.type_remuneration.data,
             montant=form.montant.data,
             date_versement=form.date_versement.data,

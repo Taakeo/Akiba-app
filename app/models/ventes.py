@@ -41,6 +41,25 @@ class Vente(db.Model):
     # facture (§ amélioration facturation, évite une double facturation).
     facture_id = db.Column(db.Integer, db.ForeignKey("facture.id"), nullable=True)
 
+    # Trace de la dernière correction (§ amélioration correction de vente) —
+    # distinct de l'annulation (statut="annulee") : une vente corrigée reste
+    # "validee", seuls certains éléments (lignes, paiements, client...) ont
+    # été modifiés après coup. Un seul jeu de champs (pas un historique
+    # complet) : suffisant pour signaler "cette vente a été corrigée" dans le
+    # rapport de session de caisse, sans viser une piste d'audit exhaustive
+    # (déjà couverte par log_audit côté fichier).
+    derniere_correction_motif = db.Column(db.Text, nullable=True)
+    derniere_correction_par_nom = db.Column(db.String(120), nullable=True)
+    derniere_correction_le = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    # Annulation : champs structurés en plus du préfixe "[ANNULÉE]" déjà
+    # écrit dans `commentaire` (conservé pour ne rien casser côté existant) —
+    # mêmes champs que sur Achat/VenteExterne/Fabrication/RemunerationSalarie,
+    # utilisés par le rapport de session de caisse.
+    annule_motif = db.Column(db.Text, nullable=True)
+    annule_par_nom = db.Column(db.String(120), nullable=True)
+    annule_le = db.Column(db.DateTime(timezone=True), nullable=True)
+
     created_by_subprofile_id = db.Column(db.Integer, db.ForeignKey("sub_profile.id"), nullable=True)
     created_by_name = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
@@ -204,9 +223,44 @@ class Facture(db.Model):
 
     client = db.relationship("Client")
     ventes = db.relationship("Vente", back_populates="facture", order_by="Vente.id")
+    ventes_externes = db.relationship("VenteExterne", back_populates="facture", order_by="VenteExterne.id")
 
     def __repr__(self):
         return f"<Facture {self.numero}>"
+
+    def lignes_affichage(self):
+        """Normalise les lignes à afficher (facture PDV ou facture ventes
+        externes — jamais les deux à la fois, voir generer_facture_externe())
+        en une même forme {description, quantite, prix_unitaire, total,
+        reference} — source unique réutilisée par factures/voir.html et
+        factures/pdf.py, pour ne jamais désynchroniser l'écran et le PDF."""
+        lignes = []
+        for vente in self.ventes:
+            for ligne in vente.lignes:
+                description = ligne.produit_nom + (" (offert)" if ligne.offert else "")
+                lignes.append(
+                    {
+                        "description": description,
+                        "quantite": ligne.quantite,
+                        "prix_unitaire": ligne.prix_unitaire,
+                        "total": ligne.total_ligne,
+                        "reference": f"ticket #{vente.id}",
+                    }
+                )
+        for vente_externe in self.ventes_externes:
+            description = vente_externe.produit.name if vente_externe.produit else (vente_externe.observations or "Vente externe")
+            quantite = vente_externe.quantite or 1
+            prix_unitaire = vente_externe.prix_unitaire or vente_externe.montant_total
+            lignes.append(
+                {
+                    "description": description,
+                    "quantite": quantite,
+                    "prix_unitaire": prix_unitaire,
+                    "total": vente_externe.montant_total,
+                    "reference": f"vente externe #{vente_externe.id}",
+                }
+            )
+        return lignes
 
 
 class VentePaiement(db.Model):

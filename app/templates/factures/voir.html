@@ -46,13 +46,11 @@
     </div>
 
     <ul class="flex flex-col gap-2 mb-4">
-      {% for vente in facture.ventes %}
-      {% for ligne in vente.lignes %}
+      {% for ligne in facture.lignes_affichage() %}
       <li class="flex justify-between font-body-md text-body-md">
-        <span>{{ ligne.quantite }} × {{ ligne.produit_nom }}{% if ligne.offert %} (offert){% endif %} <span class="text-xs text-on-surface-variant">(ticket #{{ vente.id }})</span></span>
-        <span>{{ "{:,}".format(ligne.total_ligne).replace(",", " ") }}</span>
+        <span>{{ ligne.quantite }} × {{ ligne.description }} <span class="text-xs text-on-surface-variant">({{ ligne.reference }})</span></span>
+        <span>{{ "{:,}".format(ligne.total).replace(",", " ") }}</span>
       </li>
-      {% endfor %}
       {% endfor %}
     </ul>
 

@@ -235,6 +235,116 @@ def test_voir_facture_refuse_a_un_profil_sans_pdv_ni_clients(client, login_admin
     assert response.status_code == 403
 
 
+def _ajouter_moyen_non_pdv(db, nom_compte="Compte Akiba Test Facture"):
+    from app.models import CompteFinancier, MoyenPaiement
+
+    compte = CompteFinancier(name=nom_compte, devise="Ar")
+    db.session.add(compte)
+    db.session.flush()
+    moyen = MoyenPaiement(name=f"Espèces — {nom_compte}", compte_financier_id=compte.id)
+    db.session.add(moyen)
+    db.session.commit()
+    return moyen.id
+
+
+def _vente_externe_libre(client, catalogue, client_id, moyen_id, montant_total=15000):
+    return client.post(
+        "/ventes-externes/nouveau",
+        data={
+            "client_id": str(client_id),
+            "date_vente": "2024-01-15",
+            "poste_id": str(catalogue["poste_id"]),
+            "projet_id": "0",
+            "categorie_id": str(catalogue["categorie_id"]),
+            "sous_categorie_id": "0",
+            "produit_id": "0",
+            "montant_total": str(montant_total),
+            "moyen_paiement_id": str(moyen_id),
+        },
+    )
+
+
+def test_generer_facture_externe_service_cree_une_facture_numerotee(app, db, catalogue):
+    from datetime import date
+
+    from app.models import Client, VenteExterne
+
+    class FakeUser:
+        id = None
+        full_name = "Testeur"
+
+    with app.app_context():
+        client_obj = Client(nom="Client Test", adresse="Lot 12 Analakely")
+        db.session.add(client_obj)
+        db.session.flush()
+
+        moyen_id = _ajouter_moyen_non_pdv(db)
+        vente_externe = VenteExterne(
+            client_id=client_obj.id,
+            date_vente=date(2024, 1, 15),
+            poste_id=catalogue["poste_id"],
+            categorie_id=catalogue["categorie_id"],
+            montant_total=15000,
+            moyen_paiement_id=moyen_id,
+            created_by_name="Sarah",
+        )
+        db.session.add(vente_externe)
+        db.session.commit()
+
+        from app.factures.services import generer_facture_externe
+
+        facture = generer_facture_externe(client_obj, [vente_externe], FakeUser())
+
+        assert facture.numero == "FA-000001"
+        assert facture.total == 15000
+        assert vente_externe.facture_id == facture.id
+
+
+def test_route_depuis_vente_externe_cree_la_facture(client, login_admin, catalogue, app, db):
+    client_id = _creer_client(db, app)
+    moyen_id = _ajouter_moyen_non_pdv(db)
+
+    response = _vente_externe_libre(client, catalogue, client_id, moyen_id)
+    assert response.status_code == 302
+
+    from app.models import VenteExterne
+
+    with app.app_context():
+        vente_externe_id = VenteExterne.query.first().id
+
+    response = client.post(f"/factures/depuis-vente-externe/{vente_externe_id}", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"FA-000001" in response.data
+
+
+def test_route_depuis_client_externe_agrege_plusieurs_ventes(client, login_admin, catalogue, app, db):
+    client_id = _creer_client(db, app)
+    moyen_id = _ajouter_moyen_non_pdv(db)
+
+    _vente_externe_libre(client, catalogue, client_id, moyen_id, montant_total=10000)
+    _vente_externe_libre(client, catalogue, client_id, moyen_id, montant_total=5000)
+
+    from app.models import VenteExterne
+
+    with app.app_context():
+        ids = [v.id for v in VenteExterne.query.all()]
+
+    response = client.post(
+        f"/factures/depuis-client-externe/{client_id}",
+        data={"vente_externe_ids": ids},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"FA-000001" in response.data
+
+    from app.models import Facture
+
+    with app.app_context():
+        facture = Facture.query.first()
+        assert facture.total == 15000
+        assert len(facture.ventes_externes) == 2
+
+
 def test_admin_parametres_legaux_sont_repris_sur_la_facture(client, login_admin, catalogue, app, db):
     reponse = client.post(
         "/admin/parametres-legaux",

@@ -39,6 +39,26 @@ COLONNES_ATTENDUES = [
     ("remuneration_salarie", "annule_motif", "TEXT"),
     ("remuneration_salarie", "annule_par_nom", "VARCHAR(120)"),
     ("remuneration_salarie", "annule_le", "DATETIME"),
+    # Facture officielle étendue aux ventes externes (§ amélioration
+    # facturation ventes externes) — même principe que vente.facture_id.
+    ("vente_externe", "facture_id", "INTEGER"),
+    # Correction de vente étendue (produits/quantités/paiement/client) — voir
+    # app/models/ventes.py::Vente.derniere_correction_*.
+    ("vente", "derniere_correction_motif", "TEXT"),
+    ("vente", "derniere_correction_par_nom", "VARCHAR(120)"),
+    ("vente", "derniere_correction_le", "DATETIME"),
+    # Annulation d'une vente : jusqu'ici tracée uniquement en texte libre dans
+    # vente.commentaire (préfixe "[ANNULÉE]") — mêmes champs structurés que
+    # achat/fabrication/vente_externe/remuneration_salarie, nécessaires pour
+    # lister précisément les corrections d'une session dans son rapport.
+    ("vente", "annule_motif", "TEXT"),
+    ("vente", "annule_par_nom", "VARCHAR(120)"),
+    ("vente", "annule_le", "DATETIME"),
+    # Un versement RH (salaire, avance, prime, retenue) payé en espèces PDV
+    # n'était jamais rattaché à la session de caisse — jamais déduit du
+    # théorique du tiroir ni visible dans son résumé/rapport, contrairement à
+    # un achat (retour utilisateur). Voir app/models/rh.py::RemunerationSalarie.
+    ("remuneration_salarie", "caisse_session_id", "INTEGER"),
 ]
 
 

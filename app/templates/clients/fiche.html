@@ -75,6 +75,43 @@
       </div>
     </form>
 
+    {% if client.ventes_externes %}
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-headline-md text-headline-md text-on-surface">Ventes externes</h3>
+      {% if client.ventes_externes|rejectattr("is_annule")|rejectattr("facture_id")|list %}
+      <button type="submit" form="form-facturation-externe" class="h-11 px-5 flex items-center gap-2 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md">
+        <span class="material-symbols-outlined text-[18px]">description</span>
+        Facturer la sélection
+      </button>
+      {% endif %}
+    </div>
+    <form id="form-facturation-externe" method="post" action="{{ url_for('factures.depuis_client_externe', client_id=client.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden mb-8">
+        {% for item in client.ventes_externes|sort(attribute="date_vente", reverse=True) %}
+        <div class="flex items-center gap-3 p-4 {% if not loop.last %}border-b border-outline-variant/20{% endif %} {% if item.is_annule %}opacity-50{% endif %}">
+          {% if item.is_annule or item.facture_id %}
+          <span class="w-6 h-6 flex-shrink-0" title="{{ 'Annulée' if item.is_annule else 'Déjà facturée' }}"></span>
+          {% else %}
+          <input type="checkbox" name="vente_externe_ids" value="{{ item.id }}" class="w-6 h-6 flex-shrink-0 rounded border-outline-variant">
+          {% endif %}
+          <div class="flex-1 flex items-center justify-between min-w-0">
+            <div class="min-w-0">
+              <p class="font-body-md text-body-md text-on-surface">
+                {{ item.produit.name if item.produit else (item.categorie.name if item.categorie else "Vente externe") }}
+                {% if item.facture_id %} <span class="text-xs text-on-surface-variant">— facture {{ item.facture.numero }}</span>{% endif %}
+                {% if item.is_annule %} <span class="text-xs text-error">(annulée)</span>{% endif %}
+              </p>
+              <p class="font-body-md text-xs text-on-surface-variant mt-1">{{ item.date_vente.strftime('%d/%m/%Y') }}</p>
+            </div>
+            <span class="font-label-md text-label-md text-on-surface flex-shrink-0 ml-2">{{ "{:,}".format(item.montant_total).replace(",", " ") }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </form>
+    {% endif %}
+
     <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Paiements de crédit</h3>
     <div class="bg-surface-container-lowest rounded-2xl ambient-shadow border border-outline-variant/30 overflow-hidden">
       {% for paiement in client.paiements|sort(attribute="date_paiement", reverse=True) %}
